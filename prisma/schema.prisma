@@ -1,0 +1,121 @@
+// V1 schema — restaurant POS clone
+// Multi-tenant from day one: every table that holds restaurant data
+// carries a restaurantId, and every query must filter by it.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum StaffRole {
+  admin
+  waiter
+  kitchen
+}
+
+enum OrderStatus {
+  open
+  billed
+  paid
+  cancelled
+}
+
+enum KotStatus {
+  pending
+  preparing
+  ready
+  served
+}
+
+model Restaurant {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  phone     String?
+  timezone  String   @default("Asia/Kolkata")
+  staff     Staff[]
+  tables    DiningTable[]
+  categories MenuCategory[]
+  items     MenuItem[]
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Staff {
+  id            String     @id @default(uuid())
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
+  name          String
+  phone         String?
+  passwordHash  String
+  role          StaffRole
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  @@index([restaurantId])
+}
+
+model DiningTable {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  label        String     // e.g. "T1", "Patio 2"
+  isOccupied   Boolean    @default(false)
+  orders       Order[]
+  @@index([restaurantId])
+}
+
+model MenuCategory {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  name         String     // Starters, Mains, Beverages...
+  sortOrder    Int        @default(0)
+  items        MenuItem[]
+  @@index([restaurantId])
+}
+
+model MenuItem {
+  id           String       @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id])
+  categoryId   String
+  category     MenuCategory @relation(fields: [categoryId], references: [id])
+  name         String
+  price        Decimal      @db.Decimal(10, 2)
+  isAvailable  Boolean      @default(true)
+  orderItems   OrderItem[]
+  @@index([restaurantId])
+}
+
+model Order {
+  id           String      @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id])
+  tableId      String
+  table        DiningTable @relation(fields: [tableId], references: [id])
+  staffId      String      // who opened the order
+  status       OrderStatus @default(open)
+  total        Decimal     @default(0) @db.Decimal(10, 2)
+  items        OrderItem[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  @@index([restaurantId, status])
+}
+
+model OrderItem {
+  id         String    @id @default(uuid())
+  orderId    String
+  order      Order     @relation(fields: [orderId], references: [id])
+  menuItemId String
+  menuItem   MenuItem  @relation(fields: [menuItemId], references: [id])
+  quantity   Int       @default(1)
+  priceEach  Decimal   @db.Decimal(10, 2) // snapshot at order time, price may change later
+  kotStatus  KotStatus @default(pending)
+  notes      String?
+  createdAt  DateTime  @default(now())
+}

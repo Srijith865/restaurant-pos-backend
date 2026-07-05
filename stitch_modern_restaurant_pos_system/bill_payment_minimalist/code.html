@@ -1,0 +1,332 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Bluefox POS - Billing</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed": "#e6e2df",
+                        "outline-variant": "#c4c7c7",
+                        "primary-container": "#1c1b1b",
+                        "inverse-on-surface": "#f2f1ee",
+                        "on-background": "#1b1c1a",
+                        "on-secondary-fixed-variant": "#00429b",
+                        "surface-container-highest": "#e3e2df",
+                        "surface-container": "#efeeeb",
+                        "surface-container-low": "#f4f3f0",
+                        "error-container": "#ffdad6",
+                        "surface-bright": "#faf9f6",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "on-tertiary-fixed": "#1c1b1a",
+                        "secondary": "#0056c6",
+                        "primary": "#000000",
+                        "secondary-fixed-dim": "#b0c6ff",
+                        "on-error": "#ffffff",
+                        "on-surface": "#1b1c1a",
+                        "tertiary-fixed-dim": "#cac6c4",
+                        "tertiary": "#000000",
+                        "surface-dim": "#dbdad7",
+                        "surface-variant": "#e3e2df",
+                        "on-secondary-container": "#fefcff",
+                        "on-primary-fixed": "#1c1b1b",
+                        "on-tertiary-fixed-variant": "#484645",
+                        "on-secondary-fixed": "#001945",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed": "#d9e2ff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-container": "#1c1b1a",
+                        "on-primary-fixed-variant": "#474746",
+                        "secondary-container": "#226eed",
+                        "inverse-primary": "#c8c6c5",
+                        "outline": "#747878",
+                        "on-tertiary-container": "#868382",
+                        "on-primary": "#ffffff",
+                        "inverse-surface": "#2f312f",
+                        "background": "#faf9f6",
+                        "surface-container-high": "#e9e8e5",
+                        "on-surface-variant": "#444748",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed": "#e5e2e1",
+                        "surface-tint": "#5f5e5e",
+                        "error": "#ba1a1a",
+                        "surface": "#faf9f6",
+                        "on-error-container": "#93000a",
+                        "on-primary-container": "#858383"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-margin": "32px",
+                        "base": "4px",
+                        "xs": "4px",
+                        "sm": "8px",
+                        "md": "16px",
+                        "xl": "48px",
+                        "lg": "24px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "h1": ["Inter"],
+                        "h3": ["Inter"],
+                        "h2": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "h1-mobile": ["Inter"],
+                        "label-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["15px", { "lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400" }],
+                        "label-sm": ["11px", { "lineHeight": "1", "letterSpacing": "0.03em", "fontWeight": "600" }],
+                        "h1": ["42px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "h3": ["22px", { "lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "h2": ["30px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-lg": ["17px", { "lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400" }],
+                        "h1-mobile": ["32px", { "lineHeight": "1.2", "fontWeight": "700" }],
+                        "label-md": ["13px", { "lineHeight": "1.2", "letterSpacing": "0.01em", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #faf9f6;
+            color: #1b1c1a;
+        }
+        /* Custom scrollbar for tables */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e3e2df;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #c4c7c7;
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+<!-- SideNavBar -->
+<nav class="hidden md:flex flex-col h-full py-lg px-md gap-sm bg-surface-container-low dark:bg-primary-container text-primary dark:text-inverse-primary docked fixed left-0 top-0 w-64 border-r border-outline-variant dark:border-outline">
+<div class="mb-xl flex items-center gap-md px-sm"><div class="flex items-center gap-md"><div><h2 class="font-h2 text-h2 font-black text-primary dark:text-on-primary">Bluefox</h2></div></div></div>
+<button class="w-full bg-primary text-on-primary rounded py-sm px-md font-label-md text-label-md flex justify-center items-center gap-sm mb-lg">
+<span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+            New Order
+        </button>
+<div class="flex-1 flex flex-col gap-xs font-label-md text-label-md">
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined" style="font-size: 20px;">point_of_sale</span>
+                POS
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined" style="font-size: 20px;">restaurant</span>
+                Kitchen
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT bg-surface-container-highest dark:bg-secondary-container text-primary dark:text-on-secondary-container border-l-2 border-primary dark:border-secondary font-semibold" href="#">
+<span class="material-symbols-outlined" data-weight="fill" style="font-size: 20px;">receipt_long</span>
+                Billing
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined" style="font-size: 20px;">settings</span>
+                Settings
+            </a>
+</div>
+<div class="mt-auto flex flex-col gap-xs font-label-md text-label-md pt-lg border-t border-outline-variant">
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined" style="font-size: 20px;">help_outline</span>
+                Support
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined" style="font-size: 20px;">logout</span>
+                Sign Out
+            </a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 md:ml-64 flex flex-col bg-surface h-full">
+<!-- TopNavBar (Mobile Only for Navigation, acts as Header for Desktop) -->
+<header class="flex justify-between items-center w-full px-lg py-md h-16 bg-surface dark:bg-surface text-primary dark:text-inverse-primary border-b border-outline-variant dark:border-outline md:hidden">
+<div class="font-h3 text-h3 font-bold text-primary dark:text-inverse-on-surface">Bluefox</div>
+<div class="flex gap-md">
+<button class="text-on-surface-variant hover:bg-surface-container transition-colors p-xs rounded-full">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:bg-surface-container transition-colors p-xs rounded-full">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+</header>
+<!-- Desktop Header Content -->
+<div class="hidden md:flex justify-between items-center w-full px-xl py-lg border-b border-outline-variant">
+<div>
+<h1 class="font-h2 text-h2 text-primary">Table 04 - Billing</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">Server: Alex M. • Order #8921</p>
+</div>
+<div class="flex gap-md items-center">
+<button class="text-on-surface-variant hover:bg-surface-container p-sm rounded-full transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:bg-surface-container p-sm rounded-full transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined">wifi</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant ml-sm">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a restaurant manager in a minimalist setting, neutral expression, crisp lighting, high quality, monochromatic tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4PNkqpKdoQnL4XpfEm6ypNuvllS4qUEnvoKfwQuwnHxDSY8wwVFCnmIY7fHpiACHWtcFUycRsgba5fTOOQNh6gXe-1PpzcxdnyWsacBuWWqV_-ocnl2LRLXtaPhx9lOiXvPISPvAssoEz4DgpIoFbUKNQ9ODZWwD-N1brLbhJyN2gHtR485E8YLaW9cF5yan3JTWD4Y4kUl9QUMuXal9jdgDVCgZ1tC0bLntEGV-mqEP4gag4SZRDZvTEFuWi2L_KrtBOn53UCLiN">
+</div>
+</div>
+</div>
+<!-- Billing Content -->
+<div class="flex-1 overflow-y-auto p-md md:p-xl custom-scrollbar flex flex-col md:flex-row gap-xl max-w-[1200px] mx-auto w-full">
+<!-- Left Column: Itemized Bill -->
+<div class="flex-1 flex flex-col min-w-0">
+<div class="flex justify-between items-end mb-md">
+<h2 class="font-h3 text-h3 text-primary">Order Summary</h2>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">3 Guests</span>
+</div>
+<div class="border border-outline-variant rounded-DEFAULT bg-surface-container-lowest flex-1 overflow-hidden flex flex-col">
+<!-- Table Header -->
+<div class="grid grid-cols-[3fr_1fr_1fr] gap-sm p-md border-b border-outline-variant bg-surface-container-low font-label-sm text-label-sm text-on-surface-variant uppercase">
+<div class="">Item</div>
+<div class="text-center">Qty</div>
+<div class="text-right">Price</div>
+</div>
+<!-- Table Body -->
+<div class="overflow-y-auto custom-scrollbar flex-1 p-md flex flex-col gap-sm">
+<!-- Item Row -->
+<div class="grid grid-cols-[3fr_1fr_1fr] gap-sm py-sm border-b border-surface-container items-start group">
+<div>
+<div class="font-body-md text-body-md text-primary font-medium group-hover:text-secondary transition-colors cursor-pointer">Truffle Risotto</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant mt-xs">No mushrooms, extra parmesan</div>
+</div>
+<div class="text-center font-body-md text-body-md text-on-surface-variant">1</div>
+<div class="text-right font-body-md text-body-md text-primary">Rs 24.00</div>
+</div>
+<!-- Item Row -->
+<div class="grid grid-cols-[3fr_1fr_1fr] gap-sm py-sm border-b border-surface-container items-start group">
+<div>
+<div class="font-body-md text-body-md text-primary font-medium group-hover:text-secondary transition-colors cursor-pointer">Seared Scallops</div>
+</div>
+<div class="text-center font-body-md text-body-md text-on-surface-variant">2</div>
+<div class="text-right font-body-md text-body-md text-primary">Rs 42.00</div>
+</div>
+<!-- Item Row -->
+<div class="grid grid-cols-[3fr_1fr_1fr] gap-sm py-sm border-b border-surface-container items-start group">
+<div>
+<div class="font-body-md text-body-md text-primary font-medium group-hover:text-secondary transition-colors cursor-pointer">Artisan Sourdough</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant mt-xs">Served with cultured butter</div>
+</div>
+<div class="text-center font-body-md text-body-md text-on-surface-variant">1</div>
+<div class="text-right font-body-md text-body-md text-primary">Rs 8.00</div>
+</div>
+<!-- Item Row -->
+<div class="grid grid-cols-[3fr_1fr_1fr] gap-sm py-sm border-b border-surface-container items-start group">
+<div>
+<div class="font-body-md text-body-md text-primary font-medium group-hover:text-secondary transition-colors cursor-pointer">House Pinot Noir (Glass)</div>
+</div>
+<div class="text-center font-body-md text-body-md text-on-surface-variant">3</div>
+<div class="text-right font-body-md text-body-md text-primary">Rs 36.00</div>
+</div>
+<!-- Item Row -->
+<div class="grid grid-cols-[3fr_1fr_1fr] gap-sm py-sm items-start group">
+<div>
+<div class="font-body-md text-body-md text-primary font-medium group-hover:text-secondary transition-colors cursor-pointer">Dark Chocolate Tart</div>
+</div>
+<div class="text-center font-body-md text-body-md text-on-surface-variant">1</div>
+<div class="text-right font-body-md text-body-md text-primary">Rs 12.00</div>
+</div>
+</div>
+<!-- Table Footer / Subtotals -->
+<div class="border-t border-outline-variant p-md bg-surface-container-lowest">
+<div class="flex justify-between font-body-md text-body-md text-on-surface-variant mb-sm">
+<span class="">Subtotal</span>
+<span class="">Rs 122.00</span>
+</div>
+<div class="flex justify-between font-body-md text-body-md text-on-surface-variant mb-sm">
+<span class="">Tax (8.5%)</span>
+<span class="">Rs 10.37</span>
+</div>
+<div class="flex justify-between font-body-md text-body-md text-on-surface-variant mb-md pb-md border-b border-surface-container">
+<span class="">Service Charge (18%)</span>
+<span class="">Rs 21.96</span>
+</div>
+<div class="flex justify-between items-baseline">
+<span class="font-h3 text-h3 text-primary">Total</span>
+<span class="font-h1 text-h1 text-primary">Rs 154.33</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Payment & Actions -->
+<div class="w-full md:w-[350px] flex flex-col gap-lg">
+<!-- Payment Methods -->
+<div>
+<h3 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-md">Payment Method</h3>
+<div class="grid grid-cols-3 gap-sm">
+<!-- Cash -->
+<button class="flex flex-col items-center justify-center p-md border border-primary rounded-DEFAULT bg-surface-container-lowest text-primary hover:bg-surface-container transition-colors group">
+<span class="material-symbols-outlined mb-sm text-on-surface-variant group-hover:text-primary transition-colors">payments</span>
+<span class="font-label-md text-label-md">Cash</span>
+</button>
+<!-- Card (Active) -->
+<button class="flex flex-col items-center justify-center p-md border-2 border-primary rounded-DEFAULT bg-primary text-on-primary shadow-[0_0_0_2px_rgba(0,0,0,0.1)] transition-transform active:scale-95">
+<span class="material-symbols-outlined mb-sm">credit_card</span>
+<span class="font-label-md text-label-md font-semibold">Card</span>
+</button>
+<!-- UPI -->
+<button class="flex flex-col items-center justify-center p-md border border-outline-variant rounded-DEFAULT bg-surface-container-lowest text-primary hover:bg-surface-container transition-colors group">
+<span class="material-symbols-outlined mb-sm text-on-surface-variant group-hover:text-primary transition-colors">qr_code_scanner</span>
+<span class="font-label-md text-label-md">UPI</span>
+</button>
+</div>
+</div>
+<!-- Split Bill Option -->
+<div class="border border-outline-variant rounded-DEFAULT p-md bg-surface-container-lowest flex items-center justify-between cursor-pointer hover:bg-surface-container transition-colors">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-on-surface-variant">call_split</span>
+<span class="font-body-md text-body-md text-primary">Split Bill</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant" style="font-size: 20px;">chevron_right</span>
+</div>
+<!-- Tip Section -->
+<div class="">Rs 42.00</div>
+<!-- Primary Action -->
+<div class="mt-auto pt-lg">
+<button class="w-full bg-primary text-on-primary py-lg rounded-DEFAULT font-h3 text-h3 hover:opacity-90 transition-opacity active:scale-[0.98] flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined">check_circle</span>
+                        Mark as Paid
+                    </button>
+<button class="w-full mt-sm py-sm text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors flex items-center justify-center gap-xs">
+<span class="material-symbols-outlined" style="font-size: 16px;">receipt</span>
+                        Print Receipt Only
+                    </button>
+</div>
+</div>
+</div>
+</main>
+
+
+
+
+
+
+
+
+</body></html>
