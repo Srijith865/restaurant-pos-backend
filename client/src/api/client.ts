@@ -11,7 +11,7 @@ import type {
   KotStatus,
 } from "./types";
 
-const BASE_URL = "http://localhost:4000";
+const BASE_URL = import.meta.env.VITE_API_URL || "https://restaurant-pos-backend-kzmq.onrender.com";
 
 class ApiError extends Error {
   status: number;
