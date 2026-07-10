@@ -99,6 +99,26 @@ router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  // Find all orders for this table
+  const orders = await prisma.order.findMany({
+    where: { tableId: id },
+    select: { id: true },
+  });
+
+  const orderIds = orders.map((o) => o.id);
+
+  if (orderIds.length > 0) {
+    // Delete order items first
+    await prisma.orderItem.deleteMany({
+      where: { orderId: { in: orderIds } },
+    });
+
+    // Delete orders
+    await prisma.order.deleteMany({
+      where: { id: { in: orderIds } },
+    });
+  }
+
   await prisma.diningTable.delete({ where: { id } });
 
   res.status(204).send();
