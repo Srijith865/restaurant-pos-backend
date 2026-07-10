@@ -1,297 +1,60 @@
-/**
- * Menu item routes — CRUD for the requesting restaurant's menu items.
- * Protected by requireAuth middleware (applied in index.ts).
- */
-
 import { Router, Request, Response } from "express";
-import { z } from "zod";
-import { prisma } from "../config/prisma";
+import { getDb, sql } from "../lib/db";
 
 const router = Router();
 
-// ── Validation schemas ──────────────────────────────────────────────
-
-const createItemSchema = z.object({
-  categoryId: z.string().min(1, "categoryId is required"),
-  name: z.string().min(1, "name is required"),
-  price: z.number().positive("price must be a positive number"),
-  isAvailable: z.boolean().optional(),
-});
-
-const updateItemSchema = z
-  .object({
-    categoryId: z.string().min(1, "categoryId cannot be empty").optional(),
-    name: z.string().min(1, "name cannot be empty").optional(),
-    price: z.number().positive("price must be a positive number").optional(),
-    isAvailable: z.boolean().optional(),
-  })
-  .refine(
-    (data) =>
-      data.categoryId !== undefined ||
-      data.name !== undefined ||
-      data.price !== undefined ||
-      data.isAvailable !== undefined,
-    { message: "At least one field is required" }
-  );
-
-// ── GET /items ──────────────────────────────────────────────────────
-
+// GET /items
 router.get("/", async (req: Request, res: Response): Promise<void> => {
-  const categoryId = req.query.categoryId as string | undefined;
-
-  const items = await prisma.menuItem.findMany({
-    where: {
-      restaurantId: req.restaurantId,
-      ...(categoryId ? { categoryId } : {}),
-    },
-    include: {
-      category: { select: { name: true } },
-      outletPrices: { select: { outletId: true, price: true } },
-    },
-    orderBy: { name: "asc" },
-  });
-
-  res.json(
-    items.map((item) => ({
-      id: item.id,
-      restaurantId: item.restaurantId,
-      categoryId: item.categoryId,
-      categoryName: item.category.name,
-      name: item.name,
-      price: item.price,
-      isAvailable: item.isAvailable,
-      outletPrices: item.outletPrices,
-    }))
-  );
-});
-
-// ── POST /items ─────────────────────────────────────────────────────
-
-router.post("/", async (req: Request, res: Response): Promise<void> => {
-  const parsed = createItemSchema.safeParse(req.body);
-  if (!parsed.success) {
-    const messages = parsed.error.issues.map((e: { message: string }) => e.message).join("; ");
-    res.status(400).json({ error: messages });
-    return;
-  }
-
-  const { categoryId, name, price, isAvailable } = parsed.data;
-
-  const category = await prisma.menuCategory.findFirst({
-    where: { id: categoryId, restaurantId: req.restaurantId },
-  });
-
-  if (!category) {
-    res.status(400).json({ error: "Category not found" });
-    return;
-  }
-
-  const item = await prisma.menuItem.create({
-    data: {
-      restaurantId: req.restaurantId!,
-      categoryId,
-      name,
-      price,
-      isAvailable: isAvailable ?? true,
-    },
-    include: {
-      category: { select: { name: true } },
-    },
-  });
-
-  res.status(201).json({
-    id: item.id,
-    restaurantId: item.restaurantId,
-    categoryId: item.categoryId,
-    categoryName: item.category.name,
-    name: item.name,
-    price: item.price,
-    isAvailable: item.isAvailable,
-    outletPrices: [],
-  });
-});
-
-// ── PATCH /items/:id ────────────────────────────────────────────────
-
-router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
-  const parsed = updateItemSchema.safeParse(req.body);
-  if (!parsed.success) {
-    const messages = parsed.error.issues.map((e: { message: string }) => e.message).join("; ");
-    res.status(400).json({ error: messages });
-    return;
-  }
-
-  const id = req.params.id as string;
-
-  const existing = await prisma.menuItem.findFirst({
-    where: { id, restaurantId: req.restaurantId },
-  });
-
-  if (!existing) {
-    res.status(404).json({ error: "Item not found" });
-    return;
-  }
-
-  if (parsed.data.categoryId) {
-    const category = await prisma.menuCategory.findFirst({
-      where: { id: parsed.data.categoryId, restaurantId: req.restaurantId },
-    });
-
-    if (!category) {
-      res.status(400).json({ error: "Category not found" });
-      return;
-    }
-  }
-
-  await prisma.menuItem.update({
-    where: { id },
-    data: parsed.data,
-  });
-
-  const item = await prisma.menuItem.findFirst({
-    where: { id, restaurantId: req.restaurantId },
-    include: { category: { select: { name: true } } },
-  });
-
-  if (!item) {
-    res.status(404).json({ error: "Item not found" });
-    return;
-  }
-
-  res.json({
-    id: item.id,
-    restaurantId: item.restaurantId,
-    categoryId: item.categoryId,
-    categoryName: item.category.name,
-    name: item.name,
-    price: item.price,
-    isAvailable: item.isAvailable,
-  });
-});
-
-// ── PATCH /items/:id/toggle ─────────────────────────────────────────
-
-router.patch("/:id/toggle", async (req: Request, res: Response): Promise<void> => {
-  const id = req.params.id as string;
-
-  const existing = await prisma.menuItem.findFirst({
-    where: { id, restaurantId: req.restaurantId },
-  });
-
-  if (!existing) {
-    res.status(404).json({ error: "Item not found" });
-    return;
-  }
-
-  await prisma.menuItem.update({
-    where: { id },
-    data: { isAvailable: !existing.isAvailable },
-  });
-
-  const item = await prisma.menuItem.findFirst({
-    where: { id, restaurantId: req.restaurantId },
-    include: { category: { select: { name: true } } },
-  });
-
-  if (!item) {
-    res.status(404).json({ error: "Item not found" });
-    return;
-  }
-
-  res.json({
-    id: item.id,
-    restaurantId: item.restaurantId,
-    categoryId: item.categoryId,
-    categoryName: item.category.name,
-    name: item.name,
-    price: item.price,
-    isAvailable: item.isAvailable,
-  });
-});
-
-// ── PATCH /items/:id/prices ─────────────────────────────────────────
-
-const setPricesSchema = z.object({
-  prices: z.array(z.object({
-    outletId: z.string(),
-    price: z.number().positive()
-  }))
-});
-
-router.patch("/:id/prices", async (req: Request, res: Response): Promise<void> => {
-  if (req.role !== "admin") {
-    res.status(403).json({ error: "Only admins can update prices" });
-    return;
-  }
-
-  const parsed = setPricesSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid payload" });
-    return;
-  }
-
-  const id = req.params.id as string;
-
-  const existing = await prisma.menuItem.findFirst({
-    where: { id, restaurantId: req.restaurantId },
-  });
-
-  if (!existing) {
-    res.status(404).json({ error: "Item not found" });
-    return;
-  }
-
-  // Transaction to clear old prices and set new ones
-  await prisma.$transaction(async (tx) => {
-    await tx.menuItemPrice.deleteMany({
-      where: { menuItemId: id },
-    });
-
-    if (parsed.data.prices.length > 0) {
-      await tx.menuItemPrice.createMany({
-        data: parsed.data.prices.map((p) => ({
-          menuItemId: id,
-          outletId: p.outletId,
-          price: p.price,
-        })),
-      });
-    }
-  });
-
-  res.json({ success: true });
-});
-
-// ── DELETE /items/:id ───────────────────────────────────────────────
-
-router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
-  const id = req.params.id as string;
-
-  const existing = await prisma.menuItem.findFirst({
-    where: { id, restaurantId: req.restaurantId },
-  });
-
-  if (!existing) {
-    res.status(404).json({ error: "Item not found" });
-    return;
-  }
-
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.menuItemPrice.deleteMany({
-        where: { menuItemId: id },
-      });
-      await tx.menuItem.delete({
-        where: { id },
-      });
-    });
+    const pool = await getDb();
+    
+    // Fetch items with category names
+    const itemsResult = await pool.request().query`
+      SELECT 
+        i.ItemID, 
+        i.ItemName, 
+        i.Rate, 
+        i.CategoryID,
+        c.CategoryName
+      FROM Items i
+      LEFT JOIN Categories c ON i.CategoryID = c.CategoryID
+      ORDER BY c.CategoryName ASC, i.ItemName ASC
+    `;
 
-    res.json({ success: true });
-  } catch (err: any) {
-    if (err.code === "P2003") {
-      res.status(400).json({ error: "Cannot delete this item because it has been ordered in the past. Please toggle its availability instead." });
-      return;
+    // Fetch outlet-specific rates
+    const ratesResult = await pool.request().query`
+      SELECT ItemID, OutletID, Rate FROM ItemRates
+    `;
+
+    // Group rates by ItemID
+    const ratesByItem = new Map<number, any[]>();
+    for (const row of ratesResult.recordset) {
+      if (!ratesByItem.has(row.ItemID)) {
+        ratesByItem.set(row.ItemID, []);
+      }
+      ratesByItem.get(row.ItemID)!.push({
+        id: `${row.ItemID}-${row.OutletID}`,
+        menuItemId: row.ItemID.toString(),
+        outletId: row.OutletID.toString(),
+        price: row.Rate || 0,
+      });
     }
-    res.status(500).json({ error: "Failed to delete item" });
+
+    const items = itemsResult.recordset.map((row) => ({
+      id: row.ItemID.toString(),
+      restaurantId: "1",
+      categoryId: row.CategoryID?.toString() || "0",
+      categoryName: row.CategoryName || "Unknown Category",
+      name: row.ItemName || "Unnamed Item",
+      price: row.Rate || 0,
+      isAvailable: true, // Assuming everything is available since no boolean flag in DB
+      prices: ratesByItem.get(row.ItemID) || [],
+    }));
+
+    res.json(items);
+  } catch (err) {
+    console.error("Failed to fetch items:", err);
+    res.status(500).json({ error: "Failed to fetch items" });
   }
 });
 

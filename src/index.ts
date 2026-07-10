@@ -23,7 +23,7 @@ import itemRoutes from "./routes/items";
 import tableRoutes from "./routes/tables";
 import orderRoutes from "./routes/orders";
 import kotRoutes from "./routes/kot";
-import staffRoutes from "./routes/staff";
+
 import outletRoutes from "./routes/outlets";
 import { requireAuth } from "./middleware/auth";
 
@@ -42,7 +42,7 @@ app.use("/items", requireAuth, itemRoutes);
 app.use("/tables", requireAuth, tableRoutes);
 app.use("/orders", requireAuth, orderRoutes);
 app.use("/kot", requireAuth, kotRoutes);
-app.use("/staff", requireAuth, staffRoutes);
+
 app.use("/outlets", requireAuth, outletRoutes);
 
 // ── Health check ────────────────────────────────────────────────────

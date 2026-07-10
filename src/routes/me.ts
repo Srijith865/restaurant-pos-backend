@@ -1,39 +1,33 @@
-/**
- * GET /me — returns the logged-in staff member's profile + restaurant name.
- * Protected by requireAuth middleware (applied in index.ts).
- */
-
 import { Router, Request, Response } from "express";
-import { prisma } from "../config/prisma";
+import { getDb, sql } from "../lib/db";
 
 const router = Router();
 
 router.get("/", async (req: Request, res: Response): Promise<void> => {
-  const staff = await prisma.staff.findUnique({
-    where: { id: req.staffId },
-    select: {
-      id: true,
-      name: true,
-      role: true,
-      restaurantId: true,
-      restaurant: {
-        select: { name: true },
-      },
-    },
-  });
+  try {
+    const pool = await getDb();
+    const result = await pool.request()
+      .input("waiterId", sql.Int, parseInt(req.staffId || "0"))
+      .query`SELECT WaiterID, WaiterName FROM Waiters WHERE WaiterID = @waiterId`;
 
-  if (!staff) {
-    res.status(404).json({ error: "Staff member not found" });
-    return;
+    if (result.recordset.length === 0) {
+      res.status(404).json({ error: "Staff member not found" });
+      return;
+    }
+
+    const waiter = result.recordset[0];
+
+    res.json({
+      id: waiter.WaiterID.toString(),
+      name: waiter.WaiterName,
+      role: "waiter",
+      restaurantId: "1", // Hardcoded fallback for frontend
+      restaurantName: "Bluefox Restaurant",
+    });
+  } catch (err) {
+    console.error("Failed to fetch me:", err);
+    res.status(500).json({ error: "Database error" });
   }
-
-  res.json({
-    id: staff.id,
-    name: staff.name,
-    role: staff.role,
-    restaurantId: staff.restaurantId,
-    restaurantName: staff.restaurant.name,
-  });
 });
 
 export default router;

@@ -1,11 +1,9 @@
 /**
  * Order routes — create orders, add items, update KOT status, bill & pay.
- * Protected by requireAuth middleware (applied in index.ts).
  */
 
 import { Router, Request, Response } from "express";
 import { z } from "zod";
-import { prisma } from "../config/prisma";
 import {
   getOrCreateOpenOrder,
   addItemsToOrder,
@@ -14,6 +12,7 @@ import {
   markOrderPaid,
   cancelOrder,
 } from "../services/orderService";
+import { getDb, sql } from "../lib/db";
 
 const router = Router();
 
@@ -73,12 +72,12 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
   try {
     const order = await getOrCreateOpenOrder(
-      req.restaurantId!,
+      "1",
       tableId,
       req.staffId!
     );
 
-    const updated = await addItemsToOrder(req.restaurantId!, order.id, items);
+    const updated = await addItemsToOrder("1", order.id, items);
     res.status(201).json(updated);
   } catch (err) {
     handleServiceError(res, err);
@@ -101,7 +100,7 @@ router.post("/:id/items", async (req: Request, res: Response): Promise<void> => 
 
   try {
     const updated = await addItemsToOrder(
-      req.restaurantId!,
+      "1",
       orderId,
       parsed.data.items
     );
@@ -125,11 +124,13 @@ router.patch(
       return;
     }
 
+    const orderId = req.params.id as string;
     const itemId = req.params.itemId as string;
 
     try {
       const item = await updateKotStatus(
-        req.restaurantId!,
+        "1",
+        orderId,
         itemId,
         parsed.data.status
       );
@@ -145,46 +146,76 @@ router.patch(
 router.get("/:id", async (req: Request, res: Response): Promise<void> => {
   const id = req.params.id as string;
 
-  const order = await prisma.order.findFirst({
-    where: { id, restaurantId: req.restaurantId },
-    include: {
-      items: {
-        include: { menuItem: { select: { name: true } } },
-        orderBy: { createdAt: "asc" },
-      },
-      table: { select: { id: true, label: true } },
-    },
-  });
-
-  if (!order) {
-    res.status(404).json({ error: "Order not found" });
-    return;
+  try {
+    const pool = await getDb();
+    const result = await pool.request()
+      .input("orderId", sql.Int, parseInt(id, 10))
+      .query(`SELECT * FROM Orders WHERE OrderID = @orderId`);
+      
+    if (result.recordset.length === 0) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+    
+    const orderRecord = result.recordset[0];
+    
+    const details = await pool.request()
+      .input("orderId", sql.Int, parseInt(id, 10))
+      .query(`
+        SELECT od.*, i.ItemName 
+        FROM OrderDetails od
+        LEFT JOIN Items i ON od.ItemID = i.ItemID
+        WHERE od.OrderID = @orderId
+      `);
+      
+    const items = details.recordset.map(od => ({
+      id: od.OrderDetailID.toString(),
+      orderId: orderRecord.OrderID.toString(),
+      menuItemId: od.ItemID?.toString() || "",
+      quantity: od.Quantity || 0,
+      priceEach: od.Price || 0,
+      kotStatus: "pending",
+      menuItem: { name: od.ItemName || "Item" }
+    }));
+    
+    res.json({
+      id: orderRecord.OrderID.toString(),
+      restaurantId: "1",
+      tableId: orderRecord.TableID?.toString() || "",
+      staffId: orderRecord.StewardID || "",
+      status: orderRecord.IsPaid ? "paid" : "open",
+      total: orderRecord.TotalAmount || 0,
+      items,
+    });
+  } catch(err) {
+    handleServiceError(res, err);
   }
-
-  res.json(order);
 });
 
 // ── GET /orders ─────────────────────────────────────────────────────
 
 router.get("/", async (req: Request, res: Response): Promise<void> => {
-  const statusFilter = req.query.status as string | undefined;
-
-  const orders = await prisma.order.findMany({
-    where: {
-      restaurantId: req.restaurantId,
-      ...(statusFilter ? { status: statusFilter as "open" | "billed" | "paid" | "cancelled" } : {}),
-    },
-    include: {
-      items: {
-        include: { menuItem: { select: { name: true } } },
-        orderBy: { createdAt: "asc" },
-      },
-      table: { select: { id: true, label: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  res.json(orders);
+  try {
+    const pool = await getDb();
+    const result = await pool.request().query(`
+      SELECT * FROM Orders WHERE IsPaid = 0 OR IsPaid IS NULL
+      ORDER BY OrderDate DESC
+    `);
+    
+    const orders = result.recordset.map(orderRecord => ({
+      id: orderRecord.OrderID.toString(),
+      restaurantId: "1",
+      tableId: orderRecord.TableID?.toString() || "",
+      staffId: orderRecord.StewardID || "",
+      status: orderRecord.IsPaid ? "paid" : "open",
+      total: orderRecord.TotalAmount || 0,
+      items: [],
+    }));
+    
+    res.json(orders);
+  } catch(err) {
+    handleServiceError(res, err);
+  }
 });
 
 // ── POST /orders/:id/bill ───────────────────────────────────────────
@@ -193,7 +224,7 @@ router.post("/:id/bill", async (req: Request, res: Response): Promise<void> => {
   const id = req.params.id as string;
 
   try {
-    const order = await generateBill(req.restaurantId!, id);
+    const order = await generateBill("1", id);
     res.json(order);
   } catch (err) {
     handleServiceError(res, err);
@@ -206,7 +237,8 @@ router.post("/:id/pay", async (req: Request, res: Response): Promise<void> => {
   const id = req.params.id as string;
 
   try {
-    const order = await markOrderPaid(req.restaurantId!, id);
+    // payment method defaults to cash for now
+    const order = await markOrderPaid("1", id, "cash");
     res.json(order);
   } catch (err) {
     handleServiceError(res, err);
@@ -219,7 +251,7 @@ router.post("/:id/cancel", async (req: Request, res: Response): Promise<void> =>
   const id = req.params.id as string;
 
   try {
-    const order = await cancelOrder(req.restaurantId!, id);
+    const order = await cancelOrder("1", id);
     res.json(order);
   } catch (err) {
     handleServiceError(res, err);

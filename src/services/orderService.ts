@@ -1,352 +1,187 @@
-/**
- * Order service — core transaction logic for the order lifecycle.
- *
- * Every public function takes restaurantId as the first argument to
- * enforce multi-tenant isolation. All mutations that touch multiple
- * rows happen inside a Prisma $transaction so nothing is half-saved.
- */
+import { getDb, sql } from "../lib/db";
 
-import { Prisma } from "@prisma/client";
-import { prisma } from "../config/prisma";
 
-// ── Types ───────────────────────────────────────────────────────────
-
-export interface AddItemInput {
-  menuItemId: string;
-  quantity: number;
-  notes?: string;
+// Extract types to a separate file or define them here for simplicity
+export interface Order {
+  id: string;
+  restaurantId: string;
+  tableId: string;
+  staffId: string;
+  status: "open" | "billed" | "paid" | "cancelled";
+  total: number;
+  items: any[];
+  table?: { id: string; label: string };
 }
-
-// Re-usable include shape for returning a full order
-const orderWithItems = {
-  items: {
-    include: {
-      menuItem: { select: { name: true } },
-    },
-    orderBy: { createdAt: "asc" as const },
-  },
-  table: { select: { id: true, label: true } },
-} satisfies Prisma.OrderInclude;
-
-// ── Helpers ─────────────────────────────────────────────────────────
-
-/** Sum priceEach * quantity across all items in an order (inside a tx). */
-async function recalcTotal(
-  tx: Prisma.TransactionClient,
-  orderId: string
-): Promise<Prisma.Decimal> {
-  const items = await tx.orderItem.findMany({
-    where: { orderId },
-    select: { priceEach: true, quantity: true },
-  });
-
-  let total = new Prisma.Decimal(0);
-  for (const item of items) {
-    total = total.add(new Prisma.Decimal(item.priceEach).mul(item.quantity));
-  }
-  return total;
-}
-
-// ── getOrCreateOpenOrder ────────────────────────────────────────────
-// Race-safe: if two requests arrive simultaneously for the same table,
-// the partial unique index "one_open_order_per_table" ensures only one
-// INSERT succeeds. The loser catches the unique violation (23505) and
-// re-queries instead of crashing.
 
 export async function getOrCreateOpenOrder(
   restaurantId: string,
   tableId: string,
   staffId: string
-) {
-  // Validate table belongs to this restaurant
-  const table = await prisma.diningTable.findFirst({
-    where: { id: tableId, restaurantId },
-  });
-  if (!table) {
-    throw { status: 404, message: "Table not found" };
+): Promise<Order> {
+  const pool = await getDb();
+  const tableIdInt = parseInt(tableId, 10);
+
+  // Check for existing open order
+  let result = await pool.request()
+    .input("tableId", sql.Int, tableIdInt)
+    .query(`SELECT TOP 1 * FROM Orders WHERE TableID = @tableId AND (IsPaid = 0 OR IsPaid IS NULL) ORDER BY OrderID DESC`);
+
+  let orderRecord = result.recordset[0];
+
+  if (!orderRecord) {
+    // Create new order
+    const insertResult = await pool.request()
+      .input("tableId", sql.Int, tableIdInt)
+      .input("staffId", sql.VarChar, staffId)
+      .input("date", sql.DateTime, new Date())
+      .query(`
+        INSERT INTO Orders (TableID, StewardID, OrderDate, TotalAmount, IsKOTRaised, IsPaid)
+        OUTPUT inserted.*
+        VALUES (@tableId, @staffId, @date, 0, 0, 0);
+        
+        UPDATE RestaurantTables SET Status = 'Occupied', OccupiedSince = @date WHERE TableID = @tableId;
+      `);
+    
+    orderRecord = insertResult.recordset[0];
   }
 
-  // Check for an existing open order on this table
-  const existing = await prisma.order.findFirst({
-    where: { restaurantId, tableId, status: "open" },
-    include: orderWithItems,
-  });
-
-  if (existing) return existing;
-
-  // No open order — create one in a transaction
-  try {
-    return await prisma.$transaction(async (tx) => {
-      const order = await tx.order.create({
-        data: {
-          restaurantId,
-          tableId,
-          staffId,
-          status: "open",
-          total: 0,
-        },
-        include: orderWithItems,
-      });
-
-      // Mark the table as occupied
-      await tx.diningTable.update({
-        where: { id: tableId },
-        data: { isOccupied: true },
-      });
-
-      return order;
-    }, { timeout: 20000 });
-  } catch (err: unknown) {
-    // If another concurrent request just created the open order,
-    // the partial unique index will reject this INSERT with 23505.
-    // In that case, just return the order the other request created.
-    const isPrismaUnique =
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2002";
-
-    const isRawPgUnique =
-      typeof err === "object" &&
-      err !== null &&
-      "code" in err &&
-      (err as { code: string }).code === "23505";
-
-    if (isPrismaUnique || isRawPgUnique) {
-      const raced = await prisma.order.findFirst({
-        where: { restaurantId, tableId, status: "open" },
-        include: orderWithItems,
-      });
-      if (raced) return raced;
-    }
-
-    // Not a race — re-throw the original error
-    throw err;
-  }
+  return {
+    id: orderRecord.OrderID.toString(),
+    restaurantId: "1",
+    tableId: orderRecord.TableID.toString(),
+    staffId: orderRecord.StewardID || "",
+    status: "open",
+    total: orderRecord.TotalAmount || 0,
+    items: [],
+  };
 }
-
-// ── addItemsToOrder ─────────────────────────────────────────────────
 
 export async function addItemsToOrder(
   restaurantId: string,
   orderId: string,
-  items: AddItemInput[]
-) {
-  return prisma.$transaction(async (tx) => {
-    // Validate the order belongs to this restaurant and is open
-    const order = await tx.order.findFirst({
-      where: { id: orderId, restaurantId, status: "open" },
-      include: { table: { select: { outletId: true } } },
-    });
-    if (!order) {
-      throw { status: 404, message: "Open order not found" };
-    }
+  items: { menuItemId: string; quantity: number; notes?: string; }[]
+): Promise<Order> {
+  const pool = await getDb();
+  const orderIdInt = parseInt(orderId, 10);
 
-    // Lock the order row (SELECT ... FOR UPDATE) FIRST to avoid deadlocks.
-    // Concurrent addItemsToOrder calls on the same order will serialize here.
-    // If we lock *after* creating OrderItems, Postgres deadlocks because
-    // inserting children acquires shared locks on the parent Order.
-    await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE`;
+  // For each item, fetch the current rate and insert into OrderDetails and TableOrders
+  for (const item of items) {
+    const itemIdInt = parseInt(item.menuItemId, 10);
+    
+    const itemQuery = await pool.request()
+      .input("itemId", sql.Int, itemIdInt)
+      .query(`SELECT TOP 1 ItemName, Rate FROM Items WHERE ItemID = @itemId`);
+      
+    if (itemQuery.recordset.length === 0) continue;
+    const itemData = itemQuery.recordset[0];
+    const amount = (itemData.Rate || 0) * item.quantity;
 
-    // Validate every menu item and snapshot prices
-    const itemsToCreate: {
-      orderId: string;
-      menuItemId: string;
-      quantity: number;
-      priceEach: Prisma.Decimal;
-      kotStatus: "pending";
-      notes: string | null;
-    }[] = [];
-
-    for (const item of items) {
-      const menuItem = await tx.menuItem.findFirst({
-        where: {
-          id: item.menuItemId,
-          restaurantId,
-          isAvailable: true,
-        },
-        include: { outletPrices: true },
-      });
-
-      if (!menuItem) {
-        throw {
-          status: 400,
-          message: `Menu item ${item.menuItemId} not found or unavailable`,
-        };
-      }
-
-      const outletPrice = order.table.outletId
-        ? menuItem.outletPrices.find(p => p.outletId === order.table.outletId)
-        : null;
-        
-      const finalPrice = outletPrice ? (menuItem.price as unknown as Prisma.Decimal).add(outletPrice.price as unknown as Prisma.Decimal) : menuItem.price;
-
-      itemsToCreate.push({
-        orderId,
-        menuItemId: item.menuItemId,
-        quantity: item.quantity,
-        priceEach: finalPrice as unknown as Prisma.Decimal, // snapshot
-        kotStatus: "pending",
-        notes: item.notes ?? null,
-      });
-    }
-
-    // Bulk create order items
-    await tx.orderItem.createMany({ data: itemsToCreate });
-
-    // Recalculate total from ALL items (not just ours) after lock
-    const newTotal = await recalcTotal(tx, orderId);
-    await tx.order.update({
-      where: { id: orderId },
-      data: { total: newTotal },
-    });
-
-    // Return the full updated order
-    return tx.order.findFirstOrThrow({
-      where: { id: orderId },
-      include: orderWithItems,
-    });
-  }, { timeout: 20000 });
-}
-
-// ── updateKotStatus ─────────────────────────────────────────────────
-
-export async function updateKotStatus(
-  restaurantId: string,
-  orderItemId: string,
-  newStatus: "pending" | "preparing" | "ready" | "served"
-) {
-  // Find the order item and verify it belongs to this restaurant
-  const orderItem = await prisma.orderItem.findFirst({
-    where: {
-      id: orderItemId,
-      order: { restaurantId },
-    },
-    include: { order: { select: { restaurantId: true } } },
-  });
-
-  if (!orderItem) {
-    throw { status: 404, message: "Order item not found" };
+    await pool.request()
+      .input("orderId", sql.Int, orderIdInt)
+      .input("itemId", sql.Int, itemIdInt)
+      .input("qty", sql.Int, item.quantity)
+      .input("price", sql.Decimal(18, 2), itemData.Rate || 0)
+      .input("amount", sql.Decimal(18, 2), amount)
+      .query(`
+        INSERT INTO OrderDetails (OrderID, ItemID, Quantity, Price, Amount)
+        VALUES (@orderId, @itemId, @qty, @price, @amount)
+      `);
   }
 
-  return prisma.orderItem.update({
-    where: { id: orderItemId },
-    data: { kotStatus: newStatus },
-    include: {
-      menuItem: { select: { name: true } },
-    },
-  });
+  // Recalculate total
+  await pool.request()
+    .input("orderId", sql.Int, orderIdInt)
+    .query(`
+      UPDATE Orders 
+      SET TotalAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+      WHERE OrderID = @orderId;
+      
+      UPDATE RestaurantTables 
+      SET CurrentAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+      WHERE TableID = (SELECT TableID FROM Orders WHERE OrderID = @orderId);
+    `);
+
+  // Fetch updated order
+  const result = await pool.request()
+    .input("orderId", sql.Int, orderIdInt)
+    .query(`SELECT * FROM Orders WHERE OrderID = @orderId`);
+    
+  const orderRecord = result.recordset[0];
+  
+  // Fetch items
+  const details = await pool.request()
+    .input("orderId", sql.Int, orderIdInt)
+    .query(`
+      SELECT od.*, i.ItemName 
+      FROM OrderDetails od
+      LEFT JOIN Items i ON od.ItemID = i.ItemID
+      WHERE od.OrderID = @orderId
+    `);
+
+  return {
+    id: orderRecord.OrderID.toString(),
+    restaurantId: "1",
+    tableId: orderRecord.TableID?.toString() || "",
+    staffId: orderRecord.StewardID || "",
+    status: orderRecord.IsPaid ? "paid" : "open",
+    total: orderRecord.TotalAmount || 0,
+    items: details.recordset.map(od => ({
+      id: od.OrderDetailID.toString(),
+      orderId: orderRecord.OrderID.toString(),
+      menuItemId: od.ItemID?.toString() || "",
+      quantity: od.Quantity || 0,
+      priceEach: od.Price || 0,
+      kotStatus: "pending",
+      menuItem: { name: od.ItemName || "Item" }
+    })),
+  };
 }
 
-// ── generateBill ────────────────────────────────────────────────────
+export async function updateKotStatus(restaurantId: string, orderId: string, itemId: string, status: string) {
+  // Not implemented in DB schema for KOT statuses per item.
+  // We can just return the order for now.
+  const pool = await getDb();
+  // Fetch order
+  const result = await pool.request()
+    .input("orderId", sql.Int, parseInt(orderId, 10))
+    .query(`SELECT * FROM Orders WHERE OrderID = @orderId`);
+  
+  if (result.recordset.length === 0) throw { status: 404, message: "Order not found" };
+  const orderRecord = result.recordset[0];
+  
+  return {
+    id: orderRecord.OrderID.toString(),
+    restaurantId: "1",
+    tableId: orderRecord.TableID?.toString() || "",
+    staffId: orderRecord.StewardID || "",
+    status: orderRecord.IsPaid ? "paid" : "open",
+    total: orderRecord.TotalAmount || 0,
+    items: [],
+  };
+}
 
 export async function generateBill(restaurantId: string, orderId: string) {
-  const order = await prisma.order.findFirst({
-    where: { id: orderId, restaurantId },
-    include: orderWithItems,
-  });
-
-  if (!order) {
-    throw { status: 404, message: "Order not found" };
-  }
-
-  if (order.status !== "open") {
-    throw { status: 400, message: `Cannot bill an order with status "${order.status}"` };
-  }
-
-  return prisma.order.update({
-    where: { id: orderId },
-    data: { status: "billed" },
-    include: orderWithItems,
-  });
+  return await updateKotStatus(restaurantId, orderId, "", "");
 }
 
-// ── markOrderPaid ───────────────────────────────────────────────────
-
-export async function markOrderPaid(restaurantId: string, orderId: string) {
-  const order = await prisma.order.findFirst({
-    where: { id: orderId, restaurantId },
-  });
-
-  if (!order) {
-    throw { status: 404, message: "Order not found" };
-  }
-
-  if (order.status !== "billed") {
-    throw {
-      status: 400,
-      message: `Cannot mark as paid — order status is "${order.status}", expected "billed"`,
-    };
-  }
-
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.order.update({
-      where: { id: orderId },
-      data: { status: "paid" },
-      include: orderWithItems,
-    });
-
-    // Free up the table — but only if no OTHER open orders exist on it
-    const otherOpenOrders = await tx.order.count({
-      where: {
-        restaurantId,
-        tableId: order.tableId,
-        status: "open",
-        id: { not: orderId },
-      },
-    });
-
-    if (otherOpenOrders === 0) {
-      await tx.diningTable.update({
-        where: { id: order.tableId },
-        data: { isOccupied: false },
-      });
-    }
-
-    return updated;
-  });
+export async function markOrderPaid(restaurantId: string, orderId: string, paymentMethod: string) {
+  const pool = await getDb();
+  await pool.request()
+    .input("orderId", sql.Int, parseInt(orderId, 10))
+    .query(`
+      UPDATE Orders SET IsPaid = 1 WHERE OrderID = @orderId;
+      UPDATE RestaurantTables SET Status = 'Available', CurrentAmount = 0 
+      WHERE TableID = (SELECT TableID FROM Orders WHERE OrderID = @orderId);
+    `);
+  return await updateKotStatus(restaurantId, orderId, "", "");
 }
 
-// ── cancelOrder ─────────────────────────────────────────────────────
-
-export async function cancelOrder(restaurantId: string, orderId: string) {
-  const order = await prisma.order.findFirst({
-    where: { id: orderId, restaurantId },
-  });
-
-  if (!order) {
-    throw { status: 404, message: "Order not found" };
-  }
-
-  if (order.status === "paid" || order.status === "cancelled") {
-    throw {
-      status: 400,
-      message: `Cannot cancel an order with status "${order.status}"`,
-    };
-  }
-
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.order.update({
-      where: { id: orderId },
-      data: { status: "cancelled" },
-      include: orderWithItems,
-    });
-
-    // Free up the table if no other open orders
-    const otherOpenOrders = await tx.order.count({
-      where: {
-        restaurantId,
-        tableId: order.tableId,
-        status: "open",
-        id: { not: orderId },
-      },
-    });
-
-    if (otherOpenOrders === 0) {
-      await tx.diningTable.update({
-        where: { id: order.tableId },
-        data: { isOccupied: false },
-      });
-    }
-
-    return updated;
-  });
+export async function cancelOrder(restaurantId: string, orderId: string, reason?: string) {
+  const pool = await getDb();
+  await pool.request()
+    .input("orderId", sql.Int, parseInt(orderId, 10))
+    .query(`
+      DELETE FROM OrderDetails WHERE OrderID = @orderId;
+      DELETE FROM Orders WHERE OrderID = @orderId;
+    `);
 }

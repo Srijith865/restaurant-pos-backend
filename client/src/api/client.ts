@@ -64,10 +64,14 @@ async function request<T>(
 }
 
 export const api = {
-  login(phone: string, password: string) {
+  getWaiters() {
+    return request<{ WaiterID: number; WaiterName: string }[]>("/auth/waiters");
+  },
+
+  login(waiterId: number) {
     return request<LoginResponse>("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ phone, password }),
+      body: JSON.stringify({ waiterId }),
     });
   },
 

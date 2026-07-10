@@ -21,8 +21,8 @@ declare global {
 
 interface JwtPayload {
   staffId: string;
-  restaurantId: string;
   role: string;
+  name: string;
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -44,7 +44,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   try {
     const payload = jwt.verify(token, secret) as JwtPayload;
     req.staffId = payload.staffId;
-    req.restaurantId = payload.restaurantId;
     req.role = payload.role;
     next();
   } catch {
