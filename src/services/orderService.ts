@@ -134,6 +134,7 @@ export async function addItemsToOrder(
     // Validate the order belongs to this restaurant and is open
     const order = await tx.order.findFirst({
       where: { id: orderId, restaurantId, status: "open" },
+      include: { table: { select: { outletId: true } } },
     });
     if (!order) {
       throw { status: 404, message: "Open order not found" };
@@ -162,6 +163,7 @@ export async function addItemsToOrder(
           restaurantId,
           isAvailable: true,
         },
+        include: { outletPrices: true },
       });
 
       if (!menuItem) {
@@ -171,11 +173,17 @@ export async function addItemsToOrder(
         };
       }
 
+      const outletPrice = order.table.outletId
+        ? menuItem.outletPrices.find(p => p.outletId === order.table.outletId)
+        : null;
+        
+      const finalPrice = outletPrice ? outletPrice.price : menuItem.price;
+
       itemsToCreate.push({
         orderId,
         menuItemId: item.menuItemId,
         quantity: item.quantity,
-        priceEach: menuItem.price as unknown as Prisma.Decimal, // snapshot
+        priceEach: finalPrice as unknown as Prisma.Decimal, // snapshot
         kotStatus: "pending",
         notes: item.notes ?? null,
       });

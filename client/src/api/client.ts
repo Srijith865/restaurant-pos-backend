@@ -10,6 +10,8 @@ import type {
   OrderItemInput,
   KotStatus,
   Staff,
+  Outlet,
+  MenuItemPrice,
 } from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://restaurant-pos-backend-kzmq.onrender.com";
@@ -131,18 +133,25 @@ export const api = {
     return request<MenuItem>(`/items/${id}/toggle`, { method: "PATCH" });
   },
 
+  updateItemPrices(id: string, prices: MenuItemPrice[]) {
+    return request<{ success: boolean }>(`/items/${id}/prices`, {
+      method: "PATCH",
+      body: JSON.stringify({ prices }),
+    });
+  },
+
   getTables() {
     return request<DiningTable[]>("/tables");
   },
 
-  createTable(label: string) {
+  createTable(label: string, outletId?: string) {
     return request<DiningTable>("/tables", {
       method: "POST",
-      body: JSON.stringify({ label }),
+      body: JSON.stringify({ label, outletId }),
     });
   },
 
-  updateTable(id: string, data: { label?: string; isOccupied?: boolean }) {
+  updateTable(id: string, data: { label?: string; isOccupied?: boolean; outletId?: string }) {
     return request<DiningTable>(`/tables/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -201,6 +210,21 @@ export const api = {
 
   deleteStaff(id: string) {
     return request<void>(`/staff/${id}`, { method: "DELETE" });
+  },
+
+  getOutlets() {
+    return request<Outlet[]>("/outlets");
+  },
+
+  createOutlet(name: string) {
+    return request<Outlet>("/outlets", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  deleteOutlet(id: string) {
+    return request<void>(`/outlets/${id}`, { method: "DELETE" });
   },
 };
 

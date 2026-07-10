@@ -16,6 +16,17 @@ export interface Staff {
   restaurantId: string;
 }
 
+export interface Outlet {
+  id: string;
+  restaurantId: string;
+  name: string;
+}
+
+export interface MenuItemPrice {
+  outletId: string;
+  price: string | number;
+}
+
 export interface MeResponse {
   id: string;
   name: string;
@@ -39,6 +50,7 @@ export interface MenuItem {
   name: string;
   price: string | number;
   isAvailable: boolean;
+  outletPrices: MenuItemPrice[];
 }
 
 export interface DiningTable {
@@ -46,6 +58,8 @@ export interface DiningTable {
   restaurantId: string;
   label: string;
   isOccupied: boolean;
+  outletId?: string;
+  outlet?: Outlet;
 }
 
 export interface OrderItemInput {

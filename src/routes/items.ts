@@ -46,6 +46,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     },
     include: {
       category: { select: { name: true } },
+      outletPrices: { select: { outletId: true, price: true } },
     },
     orderBy: { name: "asc" },
   });
@@ -59,6 +60,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       name: item.name,
       price: item.price,
       isAvailable: item.isAvailable,
+      outletPrices: item.outletPrices,
     }))
   );
 });
@@ -105,6 +107,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     name: item.name,
     price: item.price,
     isAvailable: item.isAvailable,
+    outletPrices: [],
   });
 });
 
@@ -204,6 +207,58 @@ router.patch("/:id/toggle", async (req: Request, res: Response): Promise<void> =
     price: item.price,
     isAvailable: item.isAvailable,
   });
+});
+
+// ── PATCH /items/:id/prices ─────────────────────────────────────────
+
+const setPricesSchema = z.object({
+  prices: z.array(z.object({
+    outletId: z.string(),
+    price: z.number().positive()
+  }))
+});
+
+router.patch("/:id/prices", async (req: Request, res: Response): Promise<void> => {
+  if (req.role !== "admin") {
+    res.status(403).json({ error: "Only admins can update prices" });
+    return;
+  }
+
+  const parsed = setPricesSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid payload" });
+    return;
+  }
+
+  const id = req.params.id as string;
+
+  const existing = await prisma.menuItem.findFirst({
+    where: { id, restaurantId: req.restaurantId },
+  });
+
+  if (!existing) {
+    res.status(404).json({ error: "Item not found" });
+    return;
+  }
+
+  // Transaction to clear old prices and set new ones
+  await prisma.$transaction(async (tx) => {
+    await tx.menuItemPrice.deleteMany({
+      where: { menuItemId: id },
+    });
+
+    if (parsed.data.prices.length > 0) {
+      await tx.menuItemPrice.createMany({
+        data: parsed.data.prices.map((p) => ({
+          menuItemId: id,
+          outletId: p.outletId,
+          price: p.price,
+        })),
+      });
+    }
+  });
+
+  res.json({ success: true });
 });
 
 export default router;

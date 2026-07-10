@@ -13,15 +13,14 @@ const router = Router();
 
 const createTableSchema = z.object({
   label: z.string().min(1, "label is required"),
+  outletId: z.string().optional(),
 });
 
 const updateTableSchema = z
   .object({
     label: z.string().min(1, "label cannot be empty").optional(),
     isOccupied: z.boolean().optional(),
-  })
-  .refine((data) => data.label !== undefined || data.isOccupied !== undefined, {
-    message: "At least one of label or isOccupied is required",
+    outletId: z.string().optional(),
   });
 
 // ── GET /tables ─────────────────────────────────────────────────────
@@ -29,6 +28,7 @@ const updateTableSchema = z
 router.get("/", async (req: Request, res: Response): Promise<void> => {
   const tables = await prisma.diningTable.findMany({
     where: { restaurantId: req.restaurantId },
+    include: { outlet: true },
     orderBy: { label: "asc" },
   });
 
@@ -49,6 +49,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     data: {
       restaurantId: req.restaurantId!,
       label: parsed.data.label,
+      outletId: parsed.data.outletId,
     },
   });
 

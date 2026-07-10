@@ -41,6 +41,7 @@ model Restaurant {
   categories MenuCategory[]
   items     MenuItem[]
   orders    Order[]
+  outlets   Outlet[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -57,11 +58,22 @@ model Staff {
   createdAt     DateTime   @default(now())
   @@index([restaurantId])
 }
+model Outlet {
+  id           String        @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id])
+  name         String
+  tables       DiningTable[]
+  itemPrices   MenuItemPrice[]
+  @@index([restaurantId])
+}
 
 model DiningTable {
   id           String     @id @default(uuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  outletId     String?
+  outlet       Outlet?    @relation(fields: [outletId], references: [id])
   label        String     // e.g. "T1", "Patio 2"
   isOccupied   Boolean    @default(false)
   orders       Order[]
@@ -88,7 +100,18 @@ model MenuItem {
   price        Decimal      @db.Decimal(10, 2)
   isAvailable  Boolean      @default(true)
   orderItems   OrderItem[]
+  outletPrices MenuItemPrice[]
   @@index([restaurantId])
+}
+
+model MenuItemPrice {
+  id           String   @id @default(uuid())
+  menuItemId   String
+  menuItem     MenuItem @relation(fields: [menuItemId], references: [id])
+  outletId     String
+  outlet       Outlet   @relation(fields: [outletId], references: [id])
+  price        Decimal  @db.Decimal(10, 2)
+  @@unique([menuItemId, outletId])
 }
 
 model Order {

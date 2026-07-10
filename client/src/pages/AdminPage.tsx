@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api, formatPrice } from "../api/client";
 import type { DiningTable, MenuCategory, MenuItem, Staff } from "../api/types";
 
-type AdminTab = "categories" | "items" | "tables" | "staff";
+type AdminTab = "categories" | "items" | "tables" | "staff" | "outlets";
 
 function ErrorBanner({ message, onDismiss }: { message: string; onDismiss?: () => void }) {
   return (
@@ -274,20 +274,23 @@ function CategoriesTab({
 function ItemsTab({ onError }: { onError: (msg: string) => void }) {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [outlets, setOutlets] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
+  const [outletPrices, setOutletPrices] = useState<Record<string, string>>({});
   const [categoryId, setCategoryId] = useState("");
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [itemList, catList] = await Promise.all([api.getItems(), api.getCategories()]);
+      const [itemList, catList, oList] = await Promise.all([api.getItems(), api.getCategories(), api.getOutlets()]);
       setItems(itemList);
       setCategories(catList);
+      setOutlets(oList);
       setCategoryId((prev) => prev || catList[0]?.id || "");
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to load items");
@@ -303,6 +306,7 @@ function ItemsTab({ onError }: { onError: (msg: string) => void }) {
   function resetForm() {
     setName("");
     setPrice("");
+    setOutletPrices({});
     setCategoryId(categories[0]?.id ?? "");
     setShowAdd(false);
     setEditingId(null);
@@ -312,6 +316,13 @@ function ItemsTab({ onError }: { onError: (msg: string) => void }) {
     setEditingId(item.id);
     setName(item.name);
     setPrice(String(item.price));
+    
+    const initialPrices: Record<string, string> = {};
+    item.outletPrices?.forEach(p => {
+      initialPrices[p.outletId] = String(p.price);
+    });
+    setOutletPrices(initialPrices);
+    
     setCategoryId(item.categoryId);
     setShowAdd(false);
   }
@@ -329,11 +340,21 @@ function ItemsTab({ onError }: { onError: (msg: string) => void }) {
     }
 
     try {
+      let createdOrUpdatedItem: MenuItem;
       if (editingId) {
-        await api.updateItem(editingId, { name, price: priceNum, categoryId });
+        createdOrUpdatedItem = await api.updateItem(editingId, { name, price: priceNum, categoryId });
       } else {
-        await api.createItem({ name, price: priceNum, categoryId });
+        createdOrUpdatedItem = await api.createItem({ name, price: priceNum, categoryId });
       }
+
+      // Update outlet prices
+      const pricesToSave = Object.entries(outletPrices)
+        .filter(([_, p]) => p.trim() !== "")
+        .map(([oId, p]) => ({ outletId: oId, price: parseFloat(p) }))
+        .filter(p => !Number.isNaN(p.price) && p.price > 0);
+        
+      await api.updateItemPrices(createdOrUpdatedItem.id, pricesToSave);
+
       resetForm();
       await load();
     } catch (err) {
@@ -426,6 +447,31 @@ function ItemsTab({ onError }: { onError: (msg: string) => void }) {
               ))}
             </select>
           </div>
+
+          {outlets.length > 0 && (
+            <div className="mt-sm border-t border-outline-variant pt-sm">
+              <label className="mb-xs block text-label-sm uppercase text-on-surface-variant">
+                Outlet Overrides (Optional)
+              </label>
+              <div className="flex flex-col gap-sm">
+                {outlets.map(o => (
+                  <div key={o.id} className="flex items-center gap-sm">
+                    <span className="w-24 text-body-sm">{o.name}</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="Inherit base price"
+                      className={`${fieldClassName()} flex-1`}
+                      value={outletPrices[o.id] || ""}
+                      onChange={(e) => setOutletPrices(prev => ({ ...prev, [o.id]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
         </FormPanel>
       )}
 
@@ -476,14 +522,18 @@ function ItemsTab({ onError }: { onError: (msg: string) => void }) {
 
 function TablesTab({ onError }: { onError: (msg: string) => void }) {
   const [tables, setTables] = useState<DiningTable[]>([]);
+  const [outlets, setOutlets] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [label, setLabel] = useState("");
+  const [outletId, setOutletId] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      setTables(await api.getTables());
+      const [tList, oList] = await Promise.all([api.getTables(), api.getOutlets()]);
+      setTables(tList);
+      setOutlets(oList);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to load tables");
     } finally {
@@ -501,8 +551,9 @@ function TablesTab({ onError }: { onError: (msg: string) => void }) {
     onError("");
 
     try {
-      await api.createTable(label);
+      await api.createTable(label, outletId || undefined);
       setLabel("");
+      setOutletId("");
       setShowAdd(false);
       await load();
     } catch (err) {
@@ -562,16 +613,32 @@ function TablesTab({ onError }: { onError: (msg: string) => void }) {
               required
             />
           </div>
+          <div>
+            <label className="text-label-sm uppercase text-on-surface-variant">Outlet (Optional)</label>
+            <select
+              className={fieldClassName()}
+              value={outletId}
+              onChange={(e) => setOutletId(e.target.value)}
+            >
+              <option value="">None</option>
+              {outlets.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </FormPanel>
       )}
 
       {tables.length === 0 ? (
         <p className="text-on-surface-variant">No tables yet.</p>
       ) : (
-        <AdminTable headers={["Label", "Status", "Actions"]}>
+        <AdminTable headers={["Label", "Outlet", "Status", "Actions"]}>
           {tables.map((table) => (
-            <AdminRow key={table.id} cols={3}>
+            <AdminRow key={table.id} cols={4}>
               <div className="font-medium text-primary">{table.label}</div>
+              <div className="text-on-surface-variant">{table.outlet?.name || "—"}</div>
               <div>
                 <span
                   className={`rounded px-sm py-xs text-label-sm ${
@@ -773,12 +840,129 @@ function StaffTab({ onError }: { onError: (msg: string) => void }) {
   );
 }
 
+// ── Outlets tab ───────────────────────────────────────────────────────
+
+function OutletsTab({ onError }: { onError: (msg: string) => void }) {
+  const [outlets, setOutlets] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setOutlets(await api.getOutlets());
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to load outlets");
+    } finally {
+      setLoading(false);
+    }
+  }, [onError]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    onError("");
+
+    try {
+      await api.createOutlet(name);
+      setName("");
+      setShowAdd(false);
+      await load();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Create failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this outlet? This will delete associated item prices. Ensure no tables are assigned.")) return;
+    onError("");
+
+    try {
+      await api.deleteOutlet(id);
+      await load();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Delete failed");
+    }
+  }
+
+  if (loading) return <p className="text-on-surface-variant">Loading outlets…</p>;
+
+  return (
+    <div>
+      {!showAdd && (
+        <button
+          type="button"
+          onClick={() => setShowAdd(true)}
+          className="mb-lg flex items-center gap-sm bg-primary px-md py-sm text-label-md text-on-primary hover:opacity-90"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+            add
+          </span>
+          Add Outlet
+        </button>
+      )}
+
+      {showAdd && (
+        <FormPanel
+          title="Add Outlet"
+          onClose={() => {
+            setShowAdd(false);
+            setName("");
+          }}
+          onSubmit={handleSubmit}
+          submitLabel="Create Outlet"
+          loading={saving}
+        >
+          <div>
+            <label className="text-label-sm uppercase text-on-surface-variant">Name (e.g. AC, Non-AC)</label>
+            <input
+              className={fieldClassName()}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+        </FormPanel>
+      )}
+
+      {outlets.length === 0 ? (
+        <p className="text-on-surface-variant">No outlets yet.</p>
+      ) : (
+        <AdminTable headers={["Name", "Actions"]}>
+          {outlets.map((outlet) => (
+            <AdminRow key={outlet.id} cols={2}>
+              <div className="font-medium text-primary">{outlet.name}</div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(outlet.id)}
+                  className="rounded border border-outline-variant px-sm py-xs text-label-sm text-error hover:bg-error-container/30"
+                >
+                  Delete
+                </button>
+              </div>
+            </AdminRow>
+          ))}
+        </AdminTable>
+      )}
+    </div>
+  );
+}
+
 // ── Main admin page ─────────────────────────────────────────────────
 
 const TABS: { key: AdminTab; label: string }[] = [
   { key: "categories", label: "Categories" },
   { key: "items", label: "Menu Items" },
   { key: "tables", label: "Tables" },
+  { key: "outlets", label: "Outlets" },
   { key: "staff", label: "Staff" },
 ];
 
@@ -854,8 +1038,9 @@ export default function AdminPage() {
 
         {tab === "categories" && <CategoriesTab onError={setError} />}
         {tab === "items" && <ItemsTab onError={setError} />}
-        {tab === "tables" && <TablesTab onError={setError} />}
-        {tab === "staff" && <StaffTab onError={setError} />}
+        { tab === "tables" && <TablesTab onError={setError} /> }
+        { tab === "outlets" && <OutletsTab onError={setError} /> }
+        { tab === "staff" && <StaffTab onError={setError} /> }
       </div>
     </>
   );
