@@ -69,7 +69,19 @@ function BillingLayout() {
 }
 
 function AdminLayout() {
-  const { restaurantName, isAdmin } = useLayoutProfile();
+  const { restaurantName, isAdmin, loading } = useLayoutProfile();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center text-on-surface-variant">
+        Loading...
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/pos" replace />;
+  }
 
   return (
     <AppLayout active="admin" restaurantName={restaurantName} isAdmin={isAdmin}>

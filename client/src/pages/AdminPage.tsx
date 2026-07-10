@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+
 import { api, formatPrice } from "../api/client";
 import type { DiningTable, MenuCategory, MenuItem, Staff } from "../api/types";
 
@@ -985,36 +985,8 @@ const TABS: { key: AdminTab; label: string }[] = [
 ];
 
 export default function AdminPage() {
-  const navigate = useNavigate();
   const [tab, setTab] = useState<AdminTab>("categories");
-  const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    api
-      .getMe()
-      .then((me) => {
-        if (me.role !== "admin") {
-          navigate("/pos", {
-            replace: true,
-            state: { unauthorized: "Not authorized — admin access only." },
-          });
-        } else {
-          setChecking(false);
-        }
-      })
-      .catch(() => {
-        navigate("/login", { replace: true });
-      });
-  }, [navigate]);
-
-  if (checking) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-on-surface-variant">
-        Checking access…
-      </div>
-    );
-  }
 
   return (
     <>
