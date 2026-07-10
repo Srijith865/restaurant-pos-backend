@@ -177,7 +177,7 @@ export async function addItemsToOrder(
         ? menuItem.outletPrices.find(p => p.outletId === order.table.outletId)
         : null;
         
-      const finalPrice = outletPrice ? outletPrice.price : menuItem.price;
+      const finalPrice = outletPrice ? (menuItem.price as unknown as Prisma.Decimal).add(outletPrice.price as unknown as Prisma.Decimal) : menuItem.price;
 
       itemsToCreate.push({
         orderId,

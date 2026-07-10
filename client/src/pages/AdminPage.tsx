@@ -351,7 +351,7 @@ function ItemsTab({ onError }: { onError: (msg: string) => void }) {
       const pricesToSave = Object.entries(outletPrices)
         .filter(([_, p]) => p.trim() !== "")
         .map(([oId, p]) => ({ outletId: oId, price: parseFloat(p) }))
-        .filter(p => !Number.isNaN(p.price) && p.price > 0);
+        .filter(p => !Number.isNaN(p.price));
         
       await api.updateItemPrices(createdOrUpdatedItem.id, pricesToSave);
 
@@ -451,7 +451,7 @@ function ItemsTab({ onError }: { onError: (msg: string) => void }) {
           {outlets.length > 0 && (
             <div className="mt-sm border-t border-outline-variant pt-sm">
               <label className="mb-xs block text-label-sm uppercase text-on-surface-variant">
-                Outlet Overrides (Optional)
+                Outlet Surcharges (Optional)
               </label>
               <div className="flex flex-col gap-sm">
                 {outlets.map(o => (
@@ -460,8 +460,7 @@ function ItemsTab({ onError }: { onError: (msg: string) => void }) {
                     <input
                       type="number"
                       step="0.01"
-                      min="0.01"
-                      placeholder="Inherit base price"
+                      placeholder="+0.00 (Inherit)"
                       className={`${fieldClassName()} flex-1`}
                       value={outletPrices[o.id] || ""}
                       onChange={(e) => setOutletPrices(prev => ({ ...prev, [o.id]: e.target.value }))}
