@@ -1,6 +1,6 @@
 import Sidebar from "./Sidebar";
 
-export type NavItem = "pos" | "kitchen" | "billing" | "admin";
+export type NavItem = "pos" | "kitchen" | "billing" | "admin" | "dashboard";
 
 interface AppLayoutProps {
   active: NavItem;

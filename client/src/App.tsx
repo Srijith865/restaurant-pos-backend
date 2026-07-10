@@ -8,6 +8,7 @@ import PosPage from "./pages/PosPage";
 import KitchenPage from "./pages/KitchenPage";
 import BillingPage from "./pages/BillingPage";
 import AdminPage from "./pages/AdminPage";
+import DashboardPage from "./pages/DashboardPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated()) {
@@ -73,6 +74,20 @@ function AdminLayout() {
   );
 }
 
+function DashboardLayout() {
+  const { restaurantName, isAdmin } = useLayoutProfile();
+
+  if (!isAdmin) {
+    return <Navigate to="/pos" replace />;
+  }
+
+  return (
+    <AppLayout active="dashboard" restaurantName={restaurantName} isAdmin={isAdmin}>
+      <DashboardPage />
+    </AppLayout>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -123,6 +138,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <AdminLayout />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
             </ProtectedRoute>
           }
         />

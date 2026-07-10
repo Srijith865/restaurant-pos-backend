@@ -14,16 +14,24 @@ const links: { to: string; key: NavItem; icon: string; label: string }[] = [
   { to: "/billing", key: "billing", icon: "receipt_long", label: "Billing" },
 ];
 
-const adminLink: { to: string; key: NavItem; icon: string; label: string } = {
-  to: "/admin",
-  key: "admin",
-  icon: "admin_panel_settings",
-  label: "Admin",
-};
+const adminLinks: { to: string; key: NavItem; icon: string; label: string }[] = [
+  {
+    to: "/dashboard",
+    key: "dashboard",
+    icon: "dashboard",
+    label: "Dashboard",
+  },
+  {
+    to: "/admin",
+    key: "admin",
+    icon: "admin_panel_settings",
+    label: "Admin",
+  },
+];
 
 export default function Sidebar({ active, restaurantName, isAdmin }: SidebarProps) {
   const navigate = useNavigate();
-  const navLinks = isAdmin ? [...links, adminLink] : links;
+  const navLinks = isAdmin ? [...links, ...adminLinks] : links;
 
   function handleSignOut() {
     clearToken();
