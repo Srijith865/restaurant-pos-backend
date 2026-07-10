@@ -45,7 +45,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center text-on-surface-variant">
-        Loading…
+        Loadingâ€¦
       </div>
     );
   }
