@@ -20,6 +20,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function useLayoutProfile() {
   const [restaurantName, setRestaurantName] = useState<string>();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api
@@ -28,10 +29,13 @@ function useLayoutProfile() {
         setRestaurantName(me.restaurantName);
         setIsAdmin(me.role === "admin");
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
-  return { restaurantName, isAdmin };
+  return { restaurantName, isAdmin, loading };
 }
 
 function PosLayout() {
@@ -75,7 +79,15 @@ function AdminLayout() {
 }
 
 function DashboardLayout() {
-  const { restaurantName, isAdmin } = useLayoutProfile();
+  const { restaurantName, isAdmin, loading } = useLayoutProfile();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center text-on-surface-variant">
+        Loading...
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return <Navigate to="/pos" replace />;
