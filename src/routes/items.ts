@@ -261,4 +261,38 @@ router.patch("/:id/prices", async (req: Request, res: Response): Promise<void> =
   res.json({ success: true });
 });
 
+// ── DELETE /items/:id ───────────────────────────────────────────────
+
+router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+
+  const existing = await prisma.menuItem.findFirst({
+    where: { id, restaurantId: req.restaurantId },
+  });
+
+  if (!existing) {
+    res.status(404).json({ error: "Item not found" });
+    return;
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.menuItemPrice.deleteMany({
+        where: { menuItemId: id },
+      });
+      await tx.menuItem.delete({
+        where: { id },
+      });
+    });
+
+    res.json({ success: true });
+  } catch (err: any) {
+    if (err.code === "P2003") {
+      res.status(400).json({ error: "Cannot delete this item because it has been ordered in the past. Please toggle its availability instead." });
+      return;
+    }
+    res.status(500).json({ error: "Failed to delete item" });
+  }
+});
+
 export default router;

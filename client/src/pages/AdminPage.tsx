@@ -378,6 +378,18 @@ function ItemsTab({ onError }: { onError: (msg: string) => void }) {
     }
   }
 
+  async function handleDelete(id: string, itemName: string) {
+    if (!window.confirm(`Are you sure you want to delete ${itemName}?`)) return;
+
+    onError("");
+    try {
+      await api.deleteItem(id);
+      setItems((prev) => prev.filter((i) => i.id !== id));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to delete item");
+    }
+  }
+
   if (loading) return <p className="text-on-surface-variant">Loading menu items…</p>;
 
   return (
@@ -504,9 +516,16 @@ function ItemsTab({ onError }: { onError: (msg: string) => void }) {
                 <button
                   type="button"
                   onClick={() => startEdit(item)}
-                  className="rounded border border-outline-variant px-sm py-xs text-label-sm text-primary hover:bg-surface-container"
+                  className="rounded border border-outline-variant px-sm py-xs text-label-sm text-primary hover:bg-surface-container mr-sm"
                 >
                   Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(item.id, item.name)}
+                  className="rounded border border-error px-sm py-xs text-label-sm text-error hover:bg-error-container"
+                >
+                  Delete
                 </button>
               </div>
             </AdminRow>

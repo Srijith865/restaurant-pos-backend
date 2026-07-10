@@ -140,6 +140,10 @@ export const api = {
     });
   },
 
+  deleteItem(id: string) {
+    return request<void>(`/items/${id}`, { method: "DELETE" });
+  },
+
   getTables() {
     return request<DiningTable[]>("/tables");
   },
