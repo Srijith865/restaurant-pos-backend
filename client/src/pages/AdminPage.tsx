@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, formatPrice } from "../api/client";
-import type { DiningTable, MenuCategory, MenuItem } from "../api/types";
+import type { DiningTable, MenuCategory, MenuItem, Staff } from "../api/types";
 
-type AdminTab = "categories" | "items" | "tables";
+type AdminTab = "categories" | "items" | "tables" | "staff";
 
 function ErrorBanner({ message, onDismiss }: { message: string; onDismiss?: () => void }) {
   return (
@@ -600,12 +600,186 @@ function TablesTab({ onError }: { onError: (msg: string) => void }) {
   );
 }
 
+// ── Staff tab ───────────────────────────────────────────────────────
+
+function StaffTab({ onError }: { onError: (msg: string) => void }) {
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("waiter");
+  
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setStaff(await api.getStaff());
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to load staff");
+    } finally {
+      setLoading(false);
+    }
+  }, [onError]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    onError("");
+
+    try {
+      await api.createStaff({ name, phone, password, role });
+      setName("");
+      setPhone("");
+      setPassword("");
+      setRole("waiter");
+      setShowAdd(false);
+      await load();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Create failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this staff member?")) return;
+    onError("");
+
+    try {
+      await api.deleteStaff(id);
+      await load();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Delete failed");
+    }
+  }
+
+  if (loading) return <p className="text-on-surface-variant">Loading staff…</p>;
+
+  return (
+    <div>
+      {!showAdd && (
+        <button
+          type="button"
+          onClick={() => setShowAdd(true)}
+          className="mb-lg flex items-center gap-sm bg-primary px-md py-sm text-label-md text-on-primary hover:opacity-90"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+            add
+          </span>
+          Add Staff
+        </button>
+      )}
+
+      {showAdd && (
+        <FormPanel
+          title="Add Staff"
+          onClose={() => {
+            setShowAdd(false);
+            setName("");
+            setPhone("");
+            setPassword("");
+            setRole("waiter");
+          }}
+          onSubmit={handleSubmit}
+          submitLabel="Create Staff"
+          loading={saving}
+        >
+          <div>
+            <label className="text-label-sm uppercase text-on-surface-variant">Name</label>
+            <input
+              className={fieldClassName()}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="text-label-sm uppercase text-on-surface-variant">Phone (Login ID)</label>
+            <input
+              className={fieldClassName()}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="text-label-sm uppercase text-on-surface-variant">Password</label>
+            <input
+              type="password"
+              className={fieldClassName()}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+            />
+          </div>
+          <div>
+            <label className="text-label-sm uppercase text-on-surface-variant">Role</label>
+            <select
+              className={fieldClassName()}
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              required
+            >
+              <option value="waiter">Waiter (POS App)</option>
+              <option value="kitchen">Kitchen (KOT Display)</option>
+              <option value="admin">Admin (Dashboard)</option>
+            </select>
+          </div>
+        </FormPanel>
+      )}
+
+      {staff.length === 0 ? (
+        <p className="text-on-surface-variant">No staff yet.</p>
+      ) : (
+        <AdminTable headers={["Name", "Phone", "Role", "Status", "Actions"]}>
+          {staff.map((s) => (
+            <AdminRow key={s.id} cols={5}>
+              <div className="font-medium text-primary">{s.name}</div>
+              <div className="text-on-surface-variant">{s.phone}</div>
+              <div className="uppercase text-on-surface-variant text-label-sm">{s.role}</div>
+              <div>
+                <span
+                  className={`rounded px-sm py-xs text-label-sm ${
+                    s.isActive
+                      ? "bg-secondary-fixed text-on-secondary-fixed"
+                      : "bg-error-container text-on-error-container"
+                  }`}
+                >
+                  {s.isActive ? "Active" : "Inactive"}
+                </span>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(s.id)}
+                  className="rounded border border-outline-variant px-sm py-xs text-label-sm text-error hover:bg-error-container/30"
+                >
+                  Delete
+                </button>
+              </div>
+            </AdminRow>
+          ))}
+        </AdminTable>
+      )}
+    </div>
+  );
+}
+
 // ── Main admin page ─────────────────────────────────────────────────
 
 const TABS: { key: AdminTab; label: string }[] = [
   { key: "categories", label: "Categories" },
   { key: "items", label: "Menu Items" },
   { key: "tables", label: "Tables" },
+  { key: "staff", label: "Staff" },
 ];
 
 export default function AdminPage() {
@@ -681,6 +855,7 @@ export default function AdminPage() {
         {tab === "categories" && <CategoriesTab onError={setError} />}
         {tab === "items" && <ItemsTab onError={setError} />}
         {tab === "tables" && <TablesTab onError={setError} />}
+        {tab === "staff" && <StaffTab onError={setError} />}
       </div>
     </>
   );

@@ -9,6 +9,7 @@ import type {
   Order,
   OrderItemInput,
   KotStatus,
+  Staff,
 } from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://restaurant-pos-backend-kzmq.onrender.com";
@@ -185,6 +186,21 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status }),
     });
+  },
+
+  getStaff() {
+    return request<Staff[]>("/staff");
+  },
+
+  createStaff(data: { name: string; phone: string; password: string; role: string }) {
+    return request<Staff>("/staff", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteStaff(id: string) {
+    return request<void>(`/staff/${id}`, { method: "DELETE" });
   },
 };
 

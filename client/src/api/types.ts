@@ -4,6 +4,18 @@ export interface LoginResponse {
   staffId: string;
 }
 
+export type StaffRole = "admin" | "waiter" | "kitchen";
+
+export interface Staff {
+  id: string;
+  name: string;
+  phone: string;
+  role: StaffRole;
+  isActive: boolean;
+  createdAt: string;
+  restaurantId: string;
+}
+
 export interface MeResponse {
   id: string;
   name: string;
