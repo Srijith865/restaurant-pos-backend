@@ -20,8 +20,8 @@ router.get("/pending", async (req: Request, res: Response): Promise<void> => {
       FROM Orders o
       JOIN OrderDetails od ON o.OrderID = od.OrderID
       JOIN RestaurantTables rt ON o.TableID = rt.TableID
-      LEFT JOIN Items i ON od.ItemID = i.ItemID
-      WHERE o.IsKOTRaised = 0 AND o.IsPaid = 0
+      LEFT JOIN MenuItems i ON od.ItemID = i.ItemID
+      WHERE o.IsKOTRaised = 0 AND (o.IsPaid = 0 OR o.IsPaid IS NULL)
       ORDER BY o.OrderDate ASC
     `);
     

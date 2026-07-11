@@ -81,17 +81,23 @@ export async function addItemsToOrder(
     
     const itemQuery = await pool.request()
       .input("itemId", sql.Int, itemIdInt)
-      .query(`SELECT TOP 1 ItemName, Rate FROM Items WHERE ItemID = @itemId`);
+      .input("OutletID", sql.Int, 1) // Default to 1
+      .query(`
+        SELECT TOP 1 m.ItemName, COALESCE(r.Rate, m.Price) AS ActivePrice 
+        FROM MenuItems m
+        LEFT JOIN ItemRates r ON m.ItemID = r.ItemID AND r.OutletID = @OutletID
+        WHERE m.ItemID = @itemId
+      `);
       
     if (itemQuery.recordset.length === 0) continue;
     const itemData = itemQuery.recordset[0];
-    const amount = (itemData.Rate || 0) * item.quantity;
+    const amount = (itemData.ActivePrice || 0) * item.quantity;
 
     await pool.request()
       .input("orderId", sql.Int, orderIdInt)
       .input("itemId", sql.Int, itemIdInt)
       .input("qty", sql.Int, item.quantity)
-      .input("price", sql.Decimal(18, 2), itemData.Rate || 0)
+      .input("price", sql.Decimal(18, 2), itemData.ActivePrice || 0)
       .input("amount", sql.Decimal(18, 2), amount)
       .query(`
         DECLARE @NewODID INT = (SELECT ISNULL(MAX(OrderDetailID), 0) + 1 FROM OrderDetails);
@@ -127,7 +133,7 @@ export async function addItemsToOrder(
     .query(`
       SELECT od.*, i.ItemName 
       FROM OrderDetails od
-      LEFT JOIN Items i ON od.ItemID = i.ItemID
+      LEFT JOIN MenuItems i ON od.ItemID = i.ItemID
       WHERE od.OrderID = @orderId
     `);
 

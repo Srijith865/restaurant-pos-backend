@@ -10,24 +10,28 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     
     const categoryId = req.query.categoryId as string;
 
+    const outletId = 1; // Default to 1 for now
+
     let query = `
       SELECT 
-        i.ItemID, 
-        i.ItemName, 
-        i.Rate, 
-        i.CategoryID,
+        m.ItemID, 
+        m.ItemName, 
+        COALESCE(r.Rate, m.Price) AS ActivePrice,
+        m.CategoryID,
         c.CategoryName
-      FROM Items i
-      LEFT JOIN Categories c ON i.CategoryID = c.CategoryID
+      FROM MenuItems m
+      LEFT JOIN Categories c ON m.CategoryID = c.CategoryID
+      LEFT JOIN ItemRates r ON m.ItemID = r.ItemID AND r.OutletID = @OutletID
     `;
 
     if (categoryId && categoryId !== "0" && categoryId !== "all") {
-      query += ` WHERE i.CategoryID = @categoryId`;
+      query += ` WHERE m.CategoryID = @categoryId`;
     }
     
-    query += ` ORDER BY c.CategoryName ASC, i.ItemName ASC`;
+    query += ` ORDER BY c.CategoryName ASC, m.ItemName ASC`;
 
     const request = pool.request();
+    request.input("OutletID", sql.Int, outletId);
     if (categoryId && categoryId !== "0" && categoryId !== "all") {
       request.input("categoryId", sql.Int, parseInt(categoryId, 10));
     }
@@ -60,7 +64,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       categoryId: row.CategoryID?.toString() || "0",
       categoryName: row.CategoryName || "Unknown Category",
       name: row.ItemName || "Unnamed Item",
-      price: row.Rate || 0,
+      price: row.ActivePrice || 0,
       isAvailable: true, // Assuming everything is available since no boolean flag in DB
       prices: ratesByItem.get(row.ItemID) || [],
     }));

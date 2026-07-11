@@ -164,7 +164,7 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
       .query(`
         SELECT od.*, i.ItemName 
         FROM OrderDetails od
-        LEFT JOIN Items i ON od.ItemID = i.ItemID
+        LEFT JOIN MenuItems i ON od.ItemID = i.ItemID
         WHERE od.OrderID = @orderId
       `);
       
