@@ -36,13 +36,22 @@ export async function getOrCreateOpenOrder(
       .input("date", sql.DateTime, new Date())
       .query(`
         INSERT INTO Orders (TableID, StewardID, OrderDate, TotalAmount, IsKOTRaised, IsPaid)
-        OUTPUT inserted.*
-        VALUES (@tableId, @staffId, @date, 0, 0, 0);
+        VALUES (@tableId, CAST(@staffId AS INT), @date, 0, 0, 0);
+        
+        SELECT SCOPE_IDENTITY() AS OrderID;
         
         UPDATE RestaurantTables SET Status = 'Occupied', OccupiedSince = @date WHERE TableID = @tableId;
       `);
     
-    orderRecord = insertResult.recordset[0];
+    // SCOPE_IDENTITY() returns the ID in the first recordset
+    const newOrderId = insertResult.recordset[0].OrderID;
+    
+    // Fetch the newly created order
+    const newOrderResult = await pool.request()
+      .input("orderId", sql.Int, newOrderId)
+      .query(`SELECT TOP 1 * FROM Orders WHERE OrderID = @orderId`);
+      
+    orderRecord = newOrderResult.recordset[0];
   }
 
   return {

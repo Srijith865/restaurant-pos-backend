@@ -8,8 +8,9 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
     const pool = await getDb();
     
-    // Fetch items with category names
-    const itemsResult = await pool.request().query`
+    const categoryId = req.query.categoryId as string;
+
+    let query = `
       SELECT 
         i.ItemID, 
         i.ItemName, 
@@ -18,8 +19,21 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         c.CategoryName
       FROM Items i
       LEFT JOIN Categories c ON i.CategoryID = c.CategoryID
-      ORDER BY c.CategoryName ASC, i.ItemName ASC
     `;
+
+    if (categoryId && categoryId !== "0" && categoryId !== "all") {
+      query += ` WHERE i.CategoryID = @categoryId`;
+    }
+    
+    query += ` ORDER BY c.CategoryName ASC, i.ItemName ASC`;
+
+    const request = pool.request();
+    if (categoryId && categoryId !== "0" && categoryId !== "all") {
+      request.input("categoryId", sql.Int, parseInt(categoryId, 10));
+    }
+    
+    // Fetch items with category names
+    const itemsResult = await request.query(query);
 
     // Fetch outlet-specific rates
     const ratesResult = await pool.request().query`
