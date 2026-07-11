@@ -94,7 +94,7 @@ class OrderViewModel(
                         else -> emptyList()
                     }
                 } else {
-                    items = apiService.getItems(categoryId)
+                    items = apiService.getItems(categoryId, tableId)
                 }
             } catch (e: Exception) {
                 // Handle error

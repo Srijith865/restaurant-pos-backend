@@ -9,8 +9,19 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     const pool = await getDb();
     
     const categoryId = req.query.categoryId as string;
+    const tableId = req.query.tableId as string;
 
-    const outletId = 1; // Default to 1 for now
+    // Fetch the OutletID for the given table
+    let outletId = 1; // Default fallback
+    if (tableId) {
+      const tableResult = await pool.request()
+        .input("tableId", sql.Int, parseInt(tableId, 10))
+        .query(`SELECT OutletID FROM RestaurantTables WHERE TableID = @tableId`);
+      
+      if (tableResult.recordset.length > 0 && tableResult.recordset[0].OutletID) {
+        outletId = tableResult.recordset[0].OutletID;
+      }
+    }
 
     let query = `
       SELECT 

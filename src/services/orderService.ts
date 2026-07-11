@@ -75,13 +75,28 @@ export async function addItemsToOrder(
   const pool = await getDb();
   const orderIdInt = parseInt(orderId, 10);
 
+  // Fetch TableID and OutletID for the order
+  const orderInfoResult = await pool.request()
+    .input("orderId", sql.Int, orderIdInt)
+    .query(`
+      SELECT o.TableID, rt.OutletID 
+      FROM Orders o
+      LEFT JOIN RestaurantTables rt ON o.TableID = rt.TableID
+      WHERE o.OrderID = @orderId
+    `);
+    
+  let outletId = 1;
+  if (orderInfoResult.recordset.length > 0 && orderInfoResult.recordset[0].OutletID) {
+    outletId = orderInfoResult.recordset[0].OutletID;
+  }
+
   // For each item, fetch the current rate and insert into OrderDetails and TableOrders
   for (const item of items) {
     const itemIdInt = parseInt(item.menuItemId, 10);
     
     const itemQuery = await pool.request()
       .input("itemId", sql.Int, itemIdInt)
-      .input("OutletID", sql.Int, 1) // Default to 1
+      .input("OutletID", sql.Int, outletId)
       .query(`
         SELECT TOP 1 m.ItemName, COALESCE(r.Rate, m.Price) AS ActivePrice 
         FROM MenuItems m

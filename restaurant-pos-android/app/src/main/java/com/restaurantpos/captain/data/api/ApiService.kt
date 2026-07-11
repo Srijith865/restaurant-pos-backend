@@ -20,7 +20,10 @@ interface ApiService {
     suspend fun getCategories(): List<Category>
 
     @GET("items")
-    suspend fun getItems(@Query("categoryId") categoryId: String): List<MenuItem>
+    suspend fun getItems(
+        @Query("categoryId") categoryId: String,
+        @Query("tableId") tableId: String
+    ): List<MenuItem>
 
     @POST("orders")
     suspend fun createOrder(@Body request: OrderRequest): Order
