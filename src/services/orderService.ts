@@ -131,6 +131,8 @@ export async function addItemsToOrder(
       menuItemId: od.ItemID?.toString() || "",
       quantity: od.Quantity || 0,
       priceEach: od.Price || 0,
+      price: od.Price || 0,
+      name: od.ItemName || "Item",
       kotStatus: "pending",
       menuItem: { name: od.ItemName || "Item" }
     })),

@@ -15,7 +15,9 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       id: row.TableID.toString(),
       restaurantId: "1",
       number: parseInt(row.TableNumber) || 0,
+      label: row.TableNumber,
       status: row.Status === "Occupied" ? "occupied" : "available",
+      isOccupied: row.Status === "Occupied",
       outletId: row.OutletID ? row.OutletID.toString() : null,
     }));
 
