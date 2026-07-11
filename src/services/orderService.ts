@@ -35,10 +35,12 @@ export async function getOrCreateOpenOrder(
       .input("staffId", sql.VarChar, staffId)
       .input("date", sql.DateTime, new Date())
       .query(`
-        INSERT INTO Orders (TableID, StewardID, OrderDate, TotalAmount, IsKOTRaised, IsPaid)
-        VALUES (@tableId, CAST(@staffId AS INT), @date, 0, 0, 0);
+        DECLARE @NewOrderID INT = (SELECT ISNULL(MAX(OrderID), 0) + 1 FROM Orders);
+
+        INSERT INTO Orders (OrderID, TableID, StewardID, OrderDate, TotalAmount, IsKOTRaised, IsPaid)
+        VALUES (@NewOrderID, @tableId, CAST(@staffId AS INT), @date, 0, 0, 0);
         
-        SELECT SCOPE_IDENTITY() AS OrderID;
+        SELECT @NewOrderID AS OrderID;
         
         UPDATE RestaurantTables SET Status = 'Occupied', OccupiedSince = @date WHERE TableID = @tableId;
       `);
@@ -92,8 +94,10 @@ export async function addItemsToOrder(
       .input("price", sql.Decimal(18, 2), itemData.Rate || 0)
       .input("amount", sql.Decimal(18, 2), amount)
       .query(`
-        INSERT INTO OrderDetails (OrderID, ItemID, Quantity, Price, Amount)
-        VALUES (@orderId, @itemId, @qty, @price, @amount)
+        DECLARE @NewODID INT = (SELECT ISNULL(MAX(OrderDetailID), 0) + 1 FROM OrderDetails);
+
+        INSERT INTO OrderDetails (OrderDetailID, OrderID, ItemID, Quantity, Price, Amount)
+        VALUES (@NewODID, @orderId, @itemId, @qty, @price, @amount)
       `);
   }
 
