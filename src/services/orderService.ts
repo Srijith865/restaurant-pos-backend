@@ -130,10 +130,8 @@ export async function addItemsToOrder(
         INSERT INTO OrderDetails (OrderDetailID, OrderID, ItemID, Quantity, Price, Amount)
         VALUES (@NewODID, @orderId, @itemId, @qty, @price, @amount);
 
-        DECLARE @NewTempID INT = (SELECT ISNULL(MAX(TempOrderID), 0) + 1 FROM TempOrder);
-        
-        INSERT INTO TempOrder (TempOrderID, TableNumber, WaiterID, ItemName, Qty, Rate, Amount, OrderTime, IsKOTPrinted, itemid)
-        VALUES (@NewTempID, @tableNumber, @waiterId, @itemName, @qty, @price, @amount, @now, 0, @itemId);
+        INSERT INTO TempOrder (TableNumber, WaiterID, ItemName, Qty, Rate, Amount, OrderTime, IsKOTPrinted, itemid)
+        VALUES (@tableNumber, @waiterId, @itemName, @qty, @price, @amount, @now, 0, @itemId);
       `);
   }
 
