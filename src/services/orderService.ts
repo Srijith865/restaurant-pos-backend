@@ -75,19 +75,25 @@ export async function addItemsToOrder(
   const pool = await getDb();
   const orderIdInt = parseInt(orderId, 10);
 
-  // Fetch TableID and OutletID for the order
+  // Fetch TableID, OutletID, and Waiter details for the order
   const orderInfoResult = await pool.request()
     .input("orderId", sql.Int, orderIdInt)
     .query(`
-      SELECT o.TableID, rt.OutletID 
+      SELECT o.TableID, o.StewardID, rt.OutletID, rt.TableNumber 
       FROM Orders o
       LEFT JOIN RestaurantTables rt ON o.TableID = rt.TableID
       WHERE o.OrderID = @orderId
     `);
     
   let outletId = 1;
-  if (orderInfoResult.recordset.length > 0 && orderInfoResult.recordset[0].OutletID) {
-    outletId = orderInfoResult.recordset[0].OutletID;
+  let tableNumber = "";
+  let waiterId = "";
+
+  if (orderInfoResult.recordset.length > 0) {
+    const info = orderInfoResult.recordset[0];
+    if (info.OutletID) outletId = info.OutletID;
+    if (info.TableNumber) tableNumber = info.TableNumber;
+    if (info.StewardID) waiterId = info.StewardID.toString();
   }
 
   // For each item, fetch the current rate and insert into OrderDetails and TableOrders
@@ -114,11 +120,20 @@ export async function addItemsToOrder(
       .input("qty", sql.Int, item.quantity)
       .input("price", sql.Decimal(18, 2), itemData.ActivePrice || 0)
       .input("amount", sql.Decimal(18, 2), amount)
+      .input("tableNumber", sql.VarChar, tableNumber)
+      .input("waiterId", sql.VarChar, waiterId)
+      .input("itemName", sql.VarChar, itemData.ItemName)
+      .input("now", sql.DateTime, new Date())
       .query(`
         DECLARE @NewODID INT = (SELECT ISNULL(MAX(OrderDetailID), 0) + 1 FROM OrderDetails);
 
         INSERT INTO OrderDetails (OrderDetailID, OrderID, ItemID, Quantity, Price, Amount)
-        VALUES (@NewODID, @orderId, @itemId, @qty, @price, @amount)
+        VALUES (@NewODID, @orderId, @itemId, @qty, @price, @amount);
+
+        DECLARE @NewTempID INT = (SELECT ISNULL(MAX(TempOrderID), 0) + 1 FROM TempOrder);
+        
+        INSERT INTO TempOrder (TempOrderID, TableNumber, WaiterID, ItemName, Qty, Rate, Amount, OrderTime, IsKOTPrinted, itemid)
+        VALUES (@NewTempID, @tableNumber, @waiterId, @itemName, @qty, @price, @amount, @now, 0, @itemId);
       `);
   }
 
