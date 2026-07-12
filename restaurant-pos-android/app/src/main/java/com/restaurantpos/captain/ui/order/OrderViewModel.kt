@@ -23,6 +23,7 @@ class OrderViewModel(
 
     var categories by mutableStateOf<List<Category>>(emptyList())
     var items by mutableStateOf<List<MenuItem>>(emptyList())
+    private var allItems: List<MenuItem> = emptyList()
     var selectedCategoryId by mutableStateOf<String?>(null)
     
     var existingOrder by mutableStateOf<Order?>(null)
@@ -59,6 +60,7 @@ class OrderViewModel(
                     }
                 } else {
                     categories = apiService.getCategories()
+                    allItems = apiService.getItems("all", tableId)
                     if (categories.isNotEmpty()) {
                         selectCategory(categories[0].id)
                     }
@@ -94,7 +96,7 @@ class OrderViewModel(
                         else -> emptyList()
                     }
                 } else {
-                    items = apiService.getItems(categoryId, tableId)
+                    items = allItems.filter { it.categoryId == categoryId }
                 }
             } catch (e: Exception) {
                 // Handle error
