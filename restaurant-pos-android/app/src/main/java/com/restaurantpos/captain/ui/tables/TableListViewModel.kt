@@ -10,6 +10,7 @@ import com.restaurantpos.captain.data.api.ApiClient
 import com.restaurantpos.captain.data.api.models.Table
 import com.restaurantpos.captain.data.api.models.User
 import com.restaurantpos.captain.data.local.TokenStore
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -46,15 +47,22 @@ class TableListViewModel(application: Application, private val onUnauthorized: (
                     )
                 } else {
                     // Production Mode: Fetch directly from API
-                    if (user == null) {
-                        try {
-                            user = apiService.getMe()
-                        } catch (e: Exception) {
-                            // If /me fails, create a placeholder user to avoid crashes
-                            user = User(name = "Captain")
+                    val tablesDeferred = async { apiService.getTables() }
+                    val userDeferred = if (user == null) {
+                        async {
+                            try {
+                                apiService.getMe()
+                            } catch (e: Exception) {
+                                // If /me fails, create a placeholder user to avoid crashes
+                                User(name = "Captain")
+                            }
                         }
+                    } else null
+
+                    val remoteTables = tablesDeferred.await()
+                    if (userDeferred != null) {
+                        user = userDeferred.await()
                     }
-                    val remoteTables = apiService.getTables()
                     tables = remoteTables // Replace local list with exact API response
                 }
             } catch (e: Exception) {

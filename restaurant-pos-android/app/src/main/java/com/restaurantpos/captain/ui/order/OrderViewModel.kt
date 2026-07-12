@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.restaurantpos.captain.data.api.ApiClient
 import com.restaurantpos.captain.data.api.models.*
 import com.restaurantpos.captain.data.local.TokenStore
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -59,14 +60,19 @@ class OrderViewModel(
                         ), 440.0)
                     }
                 } else {
-                    categories = apiService.getCategories()
-                    allItems = apiService.getItems("all", tableId)
+                    val categoriesDeferred = async { apiService.getCategories() }
+                    val itemsDeferred = async { apiService.getItems("all", tableId) }
+                    val orderDeferred = if (orderId != null) async { apiService.getOrderById(orderId) } else null
+
+                    categories = categoriesDeferred.await()
+                    allItems = itemsDeferred.await()
+                    
+                    if (orderDeferred != null) {
+                        existingOrder = orderDeferred.await()
+                    }
+
                     if (categories.isNotEmpty()) {
                         selectCategory(categories[0].id)
-                    }
-                    
-                    if (orderId != null) {
-                        existingOrder = apiService.getOrderById(orderId)
                     }
                 }
             } catch (e: Exception) {
