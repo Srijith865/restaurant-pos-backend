@@ -187,7 +187,9 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
       id: od.OrderDetailID.toString(),
       orderId: orderRecord.OrderID.toString(),
       menuItemId: od.ItemID?.toString() || "",
+      name: od.ItemName || "Item",
       quantity: od.Quantity || 0,
+      price: od.Price || 0,
       priceEach: od.Price || 0,
       kotStatus: "pending",
       menuItem: { name: od.ItemName || "Item" }
