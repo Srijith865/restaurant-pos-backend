@@ -11,41 +11,42 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     const categoryId = req.query.categoryId as string;
     const tableId = req.query.tableId as string;
 
-    // Fetch the OutletID for the given table
-    let outletId = 1; // Default fallback
+    const request = pool.request();
+    let query = "";
+
     if (tableId) {
-      const tableResult = await pool.request()
-        .input("tableId", sql.Int, parseInt(tableId, 10))
-        .query(`SELECT OutletID FROM RestaurantTables WHERE TableID = @tableId`);
-      
-      if (tableResult.recordset.length > 0 && tableResult.recordset[0].OutletID) {
-        outletId = tableResult.recordset[0].OutletID;
-      }
+      request.input("tableId", sql.Int, parseInt(tableId, 10));
+      query = `
+        SELECT 
+          m.ItemID, 
+          m.ItemName, 
+          COALESCE(r.Rate, m.Price) AS ActivePrice,
+          m.CategoryID,
+          c.CategoryName
+        FROM MenuItems m
+        LEFT JOIN Categories c ON m.CategoryID = c.CategoryID
+        LEFT JOIN RestaurantTables t ON t.TableID = @tableId
+        LEFT JOIN ItemRates r ON m.ItemID = r.ItemID AND r.OutletID = ISNULL(t.OutletID, 1)
+      `;
+    } else {
+      query = `
+        SELECT 
+          m.ItemID, 
+          m.ItemName, 
+          m.Price AS ActivePrice,
+          m.CategoryID,
+          c.CategoryName
+        FROM MenuItems m
+        LEFT JOIN Categories c ON m.CategoryID = c.CategoryID
+      `;
     }
 
-    let query = `
-      SELECT 
-        m.ItemID, 
-        m.ItemName, 
-        COALESCE(r.Rate, m.Price) AS ActivePrice,
-        m.CategoryID,
-        c.CategoryName
-      FROM MenuItems m
-      LEFT JOIN Categories c ON m.CategoryID = c.CategoryID
-      LEFT JOIN ItemRates r ON m.ItemID = r.ItemID AND r.OutletID = @OutletID
-    `;
-
     if (categoryId && categoryId !== "0" && categoryId !== "all") {
-      query += ` WHERE m.CategoryID = @categoryId`;
+      query += (tableId ? ` WHERE m.CategoryID = @categoryId` : ` WHERE m.CategoryID = @categoryId`);
+      request.input("categoryId", sql.Int, parseInt(categoryId, 10));
     }
     
     query += ` ORDER BY c.CategoryName ASC, m.ItemName ASC`;
-
-    const request = pool.request();
-    request.input("OutletID", sql.Int, outletId);
-    if (categoryId && categoryId !== "0" && categoryId !== "all") {
-      request.input("categoryId", sql.Int, parseInt(categoryId, 10));
-    }
     
     // Fetch items with category names
     const itemsResult = await request.query(query);

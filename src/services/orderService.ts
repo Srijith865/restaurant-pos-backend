@@ -96,44 +96,62 @@ export async function addItemsToOrder(
     if (info.StewardID) waiterId = info.StewardID.toString();
   }
 
-  // For each item, fetch the current rate and insert into OrderDetails and TableOrders
-  for (const item of items) {
-    const itemIdInt = parseInt(item.menuItemId, 10);
-    
-    const itemQuery = await pool.request()
-      .input("itemId", sql.Int, itemIdInt)
+  if (items.length > 0) {
+    // 1. Fetch all prices in one query
+    const itemIds = items.map(i => parseInt(i.menuItemId, 10));
+    const pricesResult = await pool.request()
       .input("OutletID", sql.Int, outletId)
       .query(`
-        SELECT TOP 1 m.ItemName, COALESCE(r.Rate, m.Price) AS ActivePrice 
+        SELECT m.ItemID, m.ItemName, COALESCE(r.Rate, m.Price) AS ActivePrice 
         FROM MenuItems m
         LEFT JOIN ItemRates r ON m.ItemID = r.ItemID AND r.OutletID = @OutletID
-        WHERE m.ItemID = @itemId
+        WHERE m.ItemID IN (${itemIds.join(',')})
       `);
+
+    const priceMap = new Map<number, any>();
+    for (const row of pricesResult.recordset) {
+      priceMap.set(row.ItemID, row);
+    }
+
+    // 2. Build one unified batch insert
+    const insertRequest = pool.request();
+    insertRequest.input("orderId", sql.Int, orderIdInt);
+    insertRequest.input("tableNumber", sql.VarChar, tableNumber);
+    insertRequest.input("waiterId", sql.VarChar, waiterId);
+    insertRequest.input("now", sql.DateTime, new Date());
+
+    let sqlBatch = `DECLARE @CurrentMax INT = (SELECT ISNULL(MAX(OrderDetailID), 0) FROM OrderDetails);\n`;
+    let itemsInserted = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const itemIdInt = parseInt(item.menuItemId, 10);
+      const itemData = priceMap.get(itemIdInt);
+      if (!itemData) continue;
+
+      const amount = (itemData.ActivePrice || 0) * item.quantity;
       
-    if (itemQuery.recordset.length === 0) continue;
-    const itemData = itemQuery.recordset[0];
-    const amount = (itemData.ActivePrice || 0) * item.quantity;
+      insertRequest.input(`itemId_${i}`, sql.Int, itemIdInt);
+      insertRequest.input(`qty_${i}`, sql.Int, item.quantity);
+      insertRequest.input(`price_${i}`, sql.Decimal(18, 2), itemData.ActivePrice || 0);
+      insertRequest.input(`amount_${i}`, sql.Decimal(18, 2), amount);
+      insertRequest.input(`itemName_${i}`, sql.VarChar, itemData.ItemName);
+      insertRequest.input(`notes_${i}`, sql.VarChar, item.notes || "");
 
-    await pool.request()
-      .input("orderId", sql.Int, orderIdInt)
-      .input("itemId", sql.Int, itemIdInt)
-      .input("qty", sql.Int, item.quantity)
-      .input("price", sql.Decimal(18, 2), itemData.ActivePrice || 0)
-      .input("amount", sql.Decimal(18, 2), amount)
-      .input("tableNumber", sql.VarChar, tableNumber)
-      .input("waiterId", sql.VarChar, waiterId)
-      .input("itemName", sql.VarChar, itemData.ItemName)
-      .input("now", sql.DateTime, new Date())
-      .input("notes", sql.VarChar, item.notes || "")
-      .query(`
-        DECLARE @NewODID INT = (SELECT ISNULL(MAX(OrderDetailID), 0) + 1 FROM OrderDetails);
-
+      sqlBatch += `
+        SET @CurrentMax = @CurrentMax + 1;
         INSERT INTO OrderDetails (OrderDetailID, OrderID, ItemID, Quantity, Price, Amount)
-        VALUES (@NewODID, @orderId, @itemId, @qty, @price, @amount);
+        VALUES (@CurrentMax, @orderId, @itemId_${i}, @qty_${i}, @price_${i}, @amount_${i});
 
         INSERT INTO TempOrder (TableNumber, WaiterID, ItemName, Qty, Rate, Amount, OrderTime, IsKOTPrinted, itemid, narration)
-        VALUES (@tableNumber, @waiterId, @itemName, @qty, @price, @amount, @now, 0, @itemId, @notes);
-      `);
+        VALUES (@tableNumber, @waiterId, @itemName_${i}, @qty_${i}, @price_${i}, @amount_${i}, @now, 0, @itemId_${i}, @notes_${i});
+      `;
+      itemsInserted++;
+    }
+
+    if (itemsInserted > 0) {
+      await insertRequest.query(sqlBatch);
+    }
   }
 
   // Recalculate total
