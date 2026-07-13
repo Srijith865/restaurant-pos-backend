@@ -118,97 +118,71 @@ export async function addItemsToOrder(
     };
   }
 
-  // Trip 1: Fetch Order Info and Item Prices in ONE query!
-  const itemIds = items.map(i => parseInt(i.menuItemId, 10));
-  const trip1Request = pool.request();
-  trip1Request.input("orderId", sql.Int, orderIdInt);
-  
-  const trip1Query = `
+  // Trip 1 & 2 Combined: The God Script
+  const tripRequest = pool.request();
+  tripRequest.input("orderId", sql.Int, orderIdInt);
+  tripRequest.input("now", sql.DateTime, new Date());
+
+  let sqlBatch = `
     SET NOCOUNT ON;
     
-    SELECT o.TableID, o.StewardID, rt.OutletID, rt.TableNumber 
+    DECLARE @TableID INT, @StewardID VARCHAR(50), @OutletID INT, @TableNumber VARCHAR(50);
+    
+    SELECT TOP 1 
+      @TableID = o.TableID, 
+      @StewardID = ISNULL(CAST(o.StewardID AS VARCHAR(50)), ''), 
+      @OutletID = rt.OutletID, 
+      @TableNumber = ISNULL(rt.TableNumber, '')
     FROM Orders o
     LEFT JOIN RestaurantTables rt ON o.TableID = rt.TableID
     WHERE o.OrderID = @orderId;
 
-    DECLARE @OutletID INT = (SELECT TOP 1 rt.OutletID FROM Orders o LEFT JOIN RestaurantTables rt ON o.TableID = rt.TableID WHERE o.OrderID = @orderId);
-
-    SELECT m.ItemID, m.ItemName, COALESCE(r.Rate, m.Price) AS ActivePrice 
-    FROM MenuItems m
-    LEFT JOIN ItemRates r ON m.ItemID = r.ItemID AND r.OutletID = ISNULL(@OutletID, 1)
-    WHERE m.ItemID IN (${itemIds.join(',')});
+    DECLARE @CurrentMax INT = (SELECT ISNULL(MAX(OrderDetailID), 0) FROM OrderDetails);
+    DECLARE @Price DECIMAL(18,2), @ItemName VARCHAR(255), @Amount DECIMAL(18,2);
   `;
-
-  const trip1Result = await trip1Request.query(trip1Query);
-  const trip1Recordsets = trip1Result.recordsets as any[][];
-  const infoRecord = trip1Recordsets[0][0];
-  const pricesRecords = trip1Recordsets[1];
-
-  let outletId = 1;
-  let tableNumber = "";
-  let waiterId = "";
-
-  if (infoRecord) {
-    if (infoRecord.OutletID) outletId = infoRecord.OutletID;
-    if (infoRecord.TableNumber) tableNumber = infoRecord.TableNumber;
-    if (infoRecord.StewardID) waiterId = infoRecord.StewardID.toString();
-  }
-
-  const priceMap = new Map<number, any>();
-  for (const row of pricesRecords) {
-    priceMap.set(row.ItemID, row);
-  }
-
-  // Trip 2: Unified Batch Insert, Update Totals, and Fetch Result
-  const trip2Request = pool.request();
-  trip2Request.input("orderId", sql.Int, orderIdInt);
-  trip2Request.input("tableNumber", sql.VarChar, tableNumber);
-  trip2Request.input("waiterId", sql.VarChar, waiterId);
-  trip2Request.input("now", sql.DateTime, new Date());
-
-  let sqlBatch = `SET NOCOUNT ON;\nDECLARE @CurrentMax INT = (SELECT ISNULL(MAX(OrderDetailID), 0) FROM OrderDetails);\n`;
-  let itemsInserted = 0;
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const itemIdInt = parseInt(item.menuItemId, 10);
-    const itemData = priceMap.get(itemIdInt);
-    if (!itemData) continue;
-
-    const amount = (itemData.ActivePrice || 0) * item.quantity;
     
-    trip2Request.input(`itemId_${i}`, sql.Int, itemIdInt);
-    trip2Request.input(`qty_${i}`, sql.Int, item.quantity);
-    trip2Request.input(`price_${i}`, sql.Decimal(18, 2), itemData.ActivePrice || 0);
-    trip2Request.input(`amount_${i}`, sql.Decimal(18, 2), amount);
-    trip2Request.input(`itemName_${i}`, sql.VarChar, itemData.ItemName);
-    trip2Request.input(`notes_${i}`, sql.VarChar, item.notes || "");
+    tripRequest.input(`itemId_${i}`, sql.Int, itemIdInt);
+    tripRequest.input(`qty_${i}`, sql.Int, item.quantity);
+    tripRequest.input(`notes_${i}`, sql.VarChar, item.notes || "");
 
     sqlBatch += `
-      SET @CurrentMax = @CurrentMax + 1;
-      INSERT INTO OrderDetails (OrderDetailID, OrderID, ItemID, Quantity, Price, Amount)
-      VALUES (@CurrentMax, @orderId, @itemId_${i}, @qty_${i}, @price_${i}, @amount_${i});
+      SELECT TOP 1 
+        @Price = COALESCE(r.Rate, m.Price), 
+        @ItemName = m.ItemName
+      FROM MenuItems m
+      LEFT JOIN ItemRates r ON m.ItemID = r.ItemID AND r.OutletID = ISNULL(@OutletID, 1)
+      WHERE m.ItemID = @itemId_${i};
 
-      INSERT INTO TempOrder (TableNumber, WaiterID, ItemName, Qty, Rate, Amount, OrderTime, IsKOTPrinted, itemid, narration)
-      VALUES (@tableNumber, @waiterId, @itemName_${i}, @qty_${i}, @price_${i}, @amount_${i}, @now, 0, @itemId_${i}, @notes_${i});
-    `;
-    itemsInserted++;
-  }
+      IF @ItemName IS NOT NULL
+      BEGIN
+        SET @Amount = @Price * @qty_${i};
+        SET @CurrentMax = @CurrentMax + 1;
+        
+        INSERT INTO OrderDetails (OrderDetailID, OrderID, ItemID, Quantity, Price, Amount)
+        VALUES (@CurrentMax, @orderId, @itemId_${i}, @qty_${i}, @Price, @Amount);
 
-  if (itemsInserted > 0) {
-    sqlBatch += `
-      UPDATE Orders 
-      SET TotalAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
-      WHERE OrderID = @orderId;
+        INSERT INTO TempOrder (TableNumber, WaiterID, ItemName, Qty, Rate, Amount, OrderTime, IsKOTPrinted, itemid, narration)
+        VALUES (@TableNumber, @StewardID, @ItemName, @qty_${i}, @Price, @Amount, @now, 0, @itemId_${i}, @notes_${i});
+      END
       
-      UPDATE RestaurantTables 
-      SET CurrentAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
-      WHERE TableID = (SELECT TableID FROM Orders WHERE OrderID = @orderId);
+      SET @ItemName = NULL;
+      SET @Price = NULL;
     `;
   }
 
-  // Always fetch updated order at the end of Trip 2
   sqlBatch += `
+    UPDATE Orders 
+    SET TotalAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+    WHERE OrderID = @orderId;
+    
+    UPDATE RestaurantTables 
+    SET CurrentAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+    WHERE TableID = @TableID;
+
     SELECT * FROM Orders WHERE OrderID = @orderId;
     
     SELECT 
@@ -224,18 +198,18 @@ export async function addItemsToOrder(
     WHERE od.OrderID = @orderId;
   `;
 
-  const finalResult = await trip2Request.query(sqlBatch);
+  const finalResult = await tripRequest.query(sqlBatch);
   
-  const trip2Recordsets = finalResult.recordsets as any[][];
-  const recordsetsCount = trip2Recordsets.length;
-  const orderRecord = trip2Recordsets[recordsetsCount - 2][0];
-  const orderDetails = trip2Recordsets[recordsetsCount - 1];
+  const tripRecordsets = finalResult.recordsets as any[][];
+  const recordsetsCount = tripRecordsets.length;
+  const orderRecord = tripRecordsets[recordsetsCount - 2][0];
+  const orderDetails = tripRecordsets[recordsetsCount - 1];
 
   return {
     id: orderRecord.OrderID.toString(),
     restaurantId,
-    tableId: orderRecord.TableID.toString(),
-    staffId: orderRecord.StewardID.toString(),
+    tableId: orderRecord.TableID?.toString() || "",
+    staffId: orderRecord.StewardID?.toString() || "",
     status: orderRecord.IsPaid ? "paid" : "open",
     total: orderRecord.TotalAmount || 0,
     items: orderDetails.map((row: any) => ({
