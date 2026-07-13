@@ -8,15 +8,15 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
     const pool = await getDb();
     const result = await pool.request().query`
-      SELECT CategoryID, CategoryName 
+      SELECT CategoryID, CategoryName, catesort
       FROM Categories 
-      ORDER BY CategoryName ASC
+      ORDER BY catesort ASC
     `;
 
     const categories = result.recordset.map((row) => ({
       id: row.CategoryID.toString(),
       name: row.CategoryName || "Unnamed Category",
-      sortOrder: 0,
+      sortOrder: row.catesort || 0,
       restaurantId: "1",
     }));
 

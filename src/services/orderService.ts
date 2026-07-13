@@ -124,14 +124,15 @@ export async function addItemsToOrder(
       .input("waiterId", sql.VarChar, waiterId)
       .input("itemName", sql.VarChar, itemData.ItemName)
       .input("now", sql.DateTime, new Date())
+      .input("notes", sql.VarChar, item.notes || "")
       .query(`
         DECLARE @NewODID INT = (SELECT ISNULL(MAX(OrderDetailID), 0) + 1 FROM OrderDetails);
 
         INSERT INTO OrderDetails (OrderDetailID, OrderID, ItemID, Quantity, Price, Amount)
         VALUES (@NewODID, @orderId, @itemId, @qty, @price, @amount);
 
-        INSERT INTO TempOrder (TableNumber, WaiterID, ItemName, Qty, Rate, Amount, OrderTime, IsKOTPrinted, itemid)
-        VALUES (@tableNumber, @waiterId, @itemName, @qty, @price, @amount, @now, 0, @itemId);
+        INSERT INTO TempOrder (TableNumber, WaiterID, ItemName, Qty, Rate, Amount, OrderTime, IsKOTPrinted, itemid, narration)
+        VALUES (@tableNumber, @waiterId, @itemName, @qty, @price, @amount, @now, 0, @itemId, @notes);
       `);
   }
 
