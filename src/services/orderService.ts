@@ -90,7 +90,7 @@ export async function addItemsToOrder(
           od.Price,
           od.Amount,
           m.ItemName,
-          (SELECT TOP 1 narration FROM TempOrder t WHERE t.itemid = od.ItemID AND t.OrderTime >= DATEADD(minute, -5, GETDATE()) ORDER BY t.TempID DESC) as notes
+          (SELECT TOP 1 narration FROM TempOrder t WHERE t.itemid = od.ItemID AND t.OrderTime >= DATEADD(minute, -5, GETDATE()) ORDER BY t.OrderTime DESC) as notes
         FROM OrderDetails od
         JOIN MenuItems m ON od.ItemID = m.ItemID
         WHERE od.OrderID = @orderId;
@@ -218,7 +218,7 @@ export async function addItemsToOrder(
       od.Price,
       od.Amount,
       m.ItemName,
-      (SELECT TOP 1 narration FROM TempOrder t WHERE t.itemid = od.ItemID AND t.OrderTime >= DATEADD(minute, -5, GETDATE()) ORDER BY t.TempID DESC) as notes
+      (SELECT TOP 1 narration FROM TempOrder t WHERE t.itemid = od.ItemID AND t.OrderTime >= DATEADD(minute, -5, GETDATE()) ORDER BY t.OrderTime DESC) as notes
     FROM OrderDetails od
     JOIN MenuItems m ON od.ItemID = m.ItemID
     WHERE od.OrderID = @orderId;
