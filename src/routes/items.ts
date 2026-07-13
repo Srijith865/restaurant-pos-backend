@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { getDb, sql } from "../lib/db";
+import { getCached, setCache } from "../lib/cache";
 
 const router = Router();
 
@@ -10,6 +11,13 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     
     const categoryId = req.query.categoryId as string;
     const tableId = req.query.tableId as string;
+    const cacheKey = `items_${categoryId || 'all'}_${tableId || 'none'}`;
+
+    const cachedItems = getCached(cacheKey);
+    if (cachedItems) {
+      res.json(cachedItems);
+      return;
+    }
 
     // Fetch the OutletID for the given table
     let outletId = 1; // Default fallback
@@ -80,6 +88,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       prices: ratesByItem.get(row.ItemID) || [],
     }));
 
+    setCache(cacheKey, items);
     res.json(items);
   } catch (err) {
     console.error("Failed to fetch items:", err);
