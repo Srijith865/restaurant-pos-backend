@@ -1,17 +1,10 @@
 import { Router, Request, Response } from "express";
 import { getDb, sql } from "../lib/db";
-import { getCached, setCache } from "../lib/cache";
 
 const router = Router();
 
 router.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
-    const cachedTables = getCached("tables");
-    if (cachedTables) {
-      res.json(cachedTables);
-      return;
-    }
-
     const pool = await getDb();
     const result = await pool.request().query`
       SELECT TableID, TableNumber, OutletID, Status
@@ -28,7 +21,6 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       outletId: row.OutletID ? row.OutletID.toString() : null,
     }));
 
-    setCache("tables", tables);
     res.json(tables);
   } catch (err) {
     console.error("Failed to fetch tables:", err);

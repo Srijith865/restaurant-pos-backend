@@ -1,6 +1,5 @@
 import { Router, Request, Response } from "express";
 import { getDb, sql } from "../lib/db";
-import { getCached, setCache } from "../lib/cache";
 
 const router = Router();
 
@@ -11,13 +10,6 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     
     const categoryId = req.query.categoryId as string;
     const tableId = req.query.tableId as string;
-    const cacheKey = `items_${categoryId || 'all'}_${tableId || 'none'}`;
-
-    const cachedItems = getCached(cacheKey);
-    if (cachedItems) {
-      res.json(cachedItems);
-      return;
-    }
 
     // Fetch the OutletID for the given table
     let outletId = 1; // Default fallback
@@ -58,23 +50,25 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     // Fetch items with category names
     const itemsResult = await request.query(query);
 
-    // Fetch outlet-specific rates
-    const ratesResult = await pool.request().query`
-      SELECT ItemID, OutletID, Rate FROM ItemRates
-    `;
-
     // Group rates by ItemID
     const ratesByItem = new Map<number, any[]>();
-    for (const row of ratesResult.recordset) {
-      if (!ratesByItem.has(row.ItemID)) {
-        ratesByItem.set(row.ItemID, []);
+    
+    // Only fetch outlet-specific rates array if it's the Admin Dashboard (tableId is missing)
+    if (!tableId) {
+      const ratesResult = await pool.request().query`
+        SELECT ItemID, OutletID, Rate FROM ItemRates
+      `;
+      for (const row of ratesResult.recordset) {
+        if (!ratesByItem.has(row.ItemID)) {
+          ratesByItem.set(row.ItemID, []);
+        }
+        ratesByItem.get(row.ItemID)!.push({
+          id: `${row.ItemID}-${row.OutletID}`,
+          menuItemId: row.ItemID.toString(),
+          outletId: row.OutletID.toString(),
+          price: row.Rate || 0,
+        });
       }
-      ratesByItem.get(row.ItemID)!.push({
-        id: `${row.ItemID}-${row.OutletID}`,
-        menuItemId: row.ItemID.toString(),
-        outletId: row.OutletID.toString(),
-        price: row.Rate || 0,
-      });
     }
 
     const items = itemsResult.recordset.map((row) => ({
@@ -88,7 +82,6 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       prices: ratesByItem.get(row.ItemID) || [],
     }));
 
-    setCache(cacheKey, items);
     res.json(items);
   } catch (err) {
     console.error("Failed to fetch items:", err);

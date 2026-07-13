@@ -11,9 +11,9 @@ const config: sql.config = {
     enableArithAbort: true,
   },
   pool: {
-    max: 10,
-    min: 0,
-    idleTimeoutMillis: 30000,
+    max: 20,
+    min: 1,
+    idleTimeoutMillis: 300000,
   },
 };
 
