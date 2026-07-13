@@ -13,7 +13,6 @@ import {
   cancelOrder,
 } from "../services/orderService";
 import { getDb, sql } from "../lib/db";
-import { requireAuth } from "../middleware/authMiddleware";
 
 const router = Router();
 
@@ -72,6 +71,7 @@ router.get("/debug-test", async (req: Request, res: Response) => {
 });
 
 // ── POST /orders ────────────────────────────────────────────────────
+
 
 router.post("/", async (req: Request, res: Response): Promise<void> => {
   const parsed = createOrderSchema.safeParse(req.body);
