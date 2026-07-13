@@ -95,8 +95,9 @@ export async function addItemsToOrder(
         WHERE od.OrderID = @orderId;
       `);
       
-    const orderRecord = result.recordsets[0][0];
-    const orderDetails = result.recordsets[1];
+    const recordsets = result.recordsets as any[][];
+    const orderRecord = recordsets[0][0];
+    const orderDetails = recordsets[1];
     
     return {
       id: orderRecord.OrderID.toString(),
@@ -136,8 +137,9 @@ export async function addItemsToOrder(
   `;
 
   const trip1Result = await trip1Request.query(trip1Query);
-  const infoRecord = trip1Result.recordsets[0][0];
-  const pricesRecords = trip1Result.recordsets[1];
+  const trip1Recordsets = trip1Result.recordsets as any[][];
+  const infoRecord = trip1Recordsets[0][0];
+  const pricesRecords = trip1Recordsets[1];
 
   let outletId = 1;
   let tableNumber = "";
@@ -221,9 +223,10 @@ export async function addItemsToOrder(
 
   const finalResult = await trip2Request.query(sqlBatch);
   
-  const recordsetsCount = finalResult.recordsets.length;
-  const orderRecord = finalResult.recordsets[recordsetsCount - 2][0];
-  const orderDetails = finalResult.recordsets[recordsetsCount - 1];
+  const trip2Recordsets = finalResult.recordsets as any[][];
+  const recordsetsCount = trip2Recordsets.length;
+  const orderRecord = trip2Recordsets[recordsetsCount - 2][0];
+  const orderDetails = trip2Recordsets[recordsetsCount - 1];
 
   return {
     id: orderRecord.OrderID.toString(),
