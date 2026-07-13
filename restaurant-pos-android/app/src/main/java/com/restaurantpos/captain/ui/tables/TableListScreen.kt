@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -68,13 +69,30 @@ fun TableListScreen(
             } else if (viewModel.errorMessage != null) {
                 ErrorView(message = viewModel.errorMessage!!, onRetry = { viewModel.loadData(isInitial = true) })
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(12.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(viewModel.tables) { table ->
-                        TableCard(
+                var searchQuery by remember { mutableStateOf("") }
+                val filteredTables = viewModel.tables.filter {
+                    it.label.contains(searchQuery, ignoreCase = true)
+                }
+
+                Column(modifier = Modifier.fillMaxSize()) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        placeholder = { Text("Search tables...") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(filteredTables) { table ->
+                            TableCard(
                             table = table,
                             onClick = {
                                 scope.launch {
