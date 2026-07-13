@@ -35,14 +35,15 @@ export async function getOrCreateOpenOrder(
       .input("staffId", sql.VarChar, staffId)
       .input("date", sql.DateTime, new Date())
       .query(`
+        SET NOCOUNT ON;
         DECLARE @NewOrderID INT = (SELECT ISNULL(MAX(OrderID), 0) + 1 FROM Orders);
 
         INSERT INTO Orders (OrderID, TableID, StewardID, OrderDate, TotalAmount, IsKOTRaised, IsPaid)
         VALUES (@NewOrderID, @tableId, CAST(@staffId AS INT), @date, 0, 0, 0);
         
-        SELECT @NewOrderID AS OrderID;
-        
         UPDATE RestaurantTables SET Status = 'Occupied', OccupiedSince = @date WHERE TableID = @tableId;
+
+        SELECT @NewOrderID AS OrderID;
       `);
     
     // SCOPE_IDENTITY() returns the ID in the first recordset
@@ -123,6 +124,8 @@ export async function addItemsToOrder(
   trip1Request.input("orderId", sql.Int, orderIdInt);
   
   const trip1Query = `
+    SET NOCOUNT ON;
+    
     SELECT o.TableID, o.StewardID, rt.OutletID, rt.TableNumber 
     FROM Orders o
     LEFT JOIN RestaurantTables rt ON o.TableID = rt.TableID
@@ -163,7 +166,7 @@ export async function addItemsToOrder(
   trip2Request.input("waiterId", sql.VarChar, waiterId);
   trip2Request.input("now", sql.DateTime, new Date());
 
-  let sqlBatch = `DECLARE @CurrentMax INT = (SELECT ISNULL(MAX(OrderDetailID), 0) FROM OrderDetails);\n`;
+  let sqlBatch = `SET NOCOUNT ON;\nDECLARE @CurrentMax INT = (SELECT ISNULL(MAX(OrderDetailID), 0) FROM OrderDetails);\n`;
   let itemsInserted = 0;
 
   for (let i = 0; i < items.length; i++) {
