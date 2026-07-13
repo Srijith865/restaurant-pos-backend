@@ -45,6 +45,20 @@ app.use("/kot", requireAuth, kotRoutes);
 
 app.use("/outlets", requireAuth, outletRoutes);
 
+// ── Debug endpoint ──────────────────────────────────────────────────
+import { getOrCreateOpenOrder, addItemsToOrder } from "./services/orderService";
+app.get("/debug-test", async (req, res) => {
+  try {
+    const order = await getOrCreateOpenOrder("1", "1", "1");
+    const updated = await addItemsToOrder("1", order.id, [
+      { menuItemId: "1", quantity: 2, notes: "Spicy" }
+    ]);
+    res.json({ success: true, updated });
+  } catch (err: any) {
+    res.json({ success: false, error: err.message, stack: err.stack });
+  }
+});
+
 // ── Health check ────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
