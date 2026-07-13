@@ -13,6 +13,7 @@ import {
   cancelOrder,
 } from "../services/orderService";
 import { getDb, sql } from "../lib/db";
+import { requireAuth } from "../middleware/authMiddleware";
 
 const router = Router();
 
@@ -55,6 +56,20 @@ function handleServiceError(res: Response, err: unknown): void {
     res.status(500).json({ error: "Internal server error" });
   }
 }
+
+// ── GET /debug-test ─────────────────────────────────────────────────
+
+router.get("/debug-test", async (req: Request, res: Response) => {
+  try {
+    const order = await getOrCreateOpenOrder("1", "1", "1");
+    const updated = await addItemsToOrder("1", order.id, [
+      { menuItemId: "1", quantity: 2, notes: "Spicy" }
+    ]);
+    res.json({ success: true, updated });
+  } catch (err: any) {
+    res.json({ success: false, error: err.message, stack: err.stack });
+  }
+});
 
 // ── POST /orders ────────────────────────────────────────────────────
 
