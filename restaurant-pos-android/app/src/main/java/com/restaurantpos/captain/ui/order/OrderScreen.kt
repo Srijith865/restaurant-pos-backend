@@ -69,6 +69,19 @@ fun OrderScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            var searchQuery by remember { mutableStateOf("") }
+            
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Search items...") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+
             // Category Tabs
             LazyRow(
                 modifier = Modifier
@@ -103,12 +116,15 @@ fun OrderScreen(
                 } else if (viewModel.errorMessage != null) {
                     ErrorView(message = viewModel.errorMessage!!, onRetry = { })
                 } else {
+                    val filteredItems = viewModel.items.filter {
+                        it.name.contains(searchQuery, ignoreCase = true)
+                    }
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
                         contentPadding = PaddingValues(8.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(viewModel.items) { item ->
+                        items(filteredItems) { item ->
                             MenuItemCard(item = item, onAddClick = { viewModel.addToCart(item) })
                         }
                     }
