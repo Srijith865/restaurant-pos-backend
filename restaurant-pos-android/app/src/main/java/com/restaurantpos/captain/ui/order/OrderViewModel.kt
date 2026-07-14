@@ -24,7 +24,8 @@ class OrderViewModel(
 
     var categories by mutableStateOf<List<Category>>(emptyList())
     var items by mutableStateOf<List<MenuItem>>(emptyList())
-    private var allItems: List<MenuItem> = emptyList()
+    var allItems by mutableStateOf<List<MenuItem>>(emptyList())
+        private set
     var selectedCategoryId by mutableStateOf<String?>(null)
     
     var existingOrder by mutableStateOf<Order?>(null)

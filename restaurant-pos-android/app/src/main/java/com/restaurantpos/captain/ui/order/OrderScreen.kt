@@ -116,7 +116,8 @@ fun OrderScreen(
                 } else if (viewModel.errorMessage != null) {
                     ErrorView(message = viewModel.errorMessage!!, onRetry = { })
                 } else {
-                    val filteredItems = viewModel.items.filter {
+                    val itemsToSearch = if (searchQuery.isNotBlank()) viewModel.allItems else viewModel.items
+                    val filteredItems = itemsToSearch.filter {
                         it.name.contains(searchQuery, ignoreCase = true)
                     }
                     LazyVerticalGrid(
