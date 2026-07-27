@@ -8,7 +8,14 @@ data class Waiter(
 )
 
 data class LoginRequest(
-    val waiterId: Int
+    val waiterId: Int,
+    val deviceId: String,
+    val pin: String
+)
+
+data class RegisterDeviceRequest(
+    val deviceId: String,
+    val masterPassword: String
 )
 
 data class LoginResponse(

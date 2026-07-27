@@ -23,6 +23,16 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
     var isLoggingIn by mutableStateOf(false)
     var errorMessage by mutableStateOf<String?>(null)
 
+    var pin by mutableStateOf("")
+    var deviceNotAuthorized by mutableStateOf(false)
+    var isRegisteringDevice by mutableStateOf(false)
+
+    private val deviceId: String
+        get() = android.provider.Settings.Secure.getString(
+            getApplication<Application>().contentResolver,
+            android.provider.Settings.Secure.ANDROID_ID
+        )
+
     init {
         loadWaiters()
     }
@@ -47,12 +57,16 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
             errorMessage = "Please select your name"
             return
         }
+        if (pin.length != 4) {
+            errorMessage = "Please enter your 4-digit PIN"
+            return
+        }
 
         viewModelScope.launch {
             isLoggingIn = true
             errorMessage = null
             try {
-                val response = apiService.login(LoginRequest(waiterId = waiter.id))
+                val response = apiService.login(LoginRequest(waiterId = waiter.id, deviceId = deviceId, pin = pin))
                 val token = response.token
                 if (token != null) {
                     tokenStore.saveToken(token)
@@ -61,13 +75,41 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                     errorMessage = "Server error: No token received"
                 }
             } catch (e: retrofit2.HttpException) {
-                errorMessage = "Login failed: ${e.code()}"
+                if (e.code() == 403) {
+                    deviceNotAuthorized = true
+                } else if (e.code() == 401) {
+                    errorMessage = "Invalid PIN"
+                } else {
+                    errorMessage = "Login failed: ${e.code()}"
+                }
             } catch (e: java.net.ConnectException) {
                 errorMessage = "Cannot connect to server."
             } catch (e: Exception) {
                 errorMessage = "Error: ${e.message}"
             } finally {
                 isLoggingIn = false
+            }
+        }
+    }
+
+    fun registerDevice(masterPassword: String, onSuccess: () -> Unit) {
+        if (masterPassword.isEmpty()) {
+            errorMessage = "Please enter Master Password"
+            return
+        }
+        viewModelScope.launch {
+            isRegisteringDevice = true
+            errorMessage = null
+            try {
+                apiService.registerDevice(com.restaurantpos.captain.data.api.models.RegisterDeviceRequest(deviceId, masterPassword))
+                deviceNotAuthorized = false
+                onSuccess()
+            } catch (e: retrofit2.HttpException) {
+                errorMessage = "Invalid Master Password"
+            } catch (e: Exception) {
+                errorMessage = "Error: ${e.message}"
+            } finally {
+                isRegisteringDevice = false
             }
         }
     }

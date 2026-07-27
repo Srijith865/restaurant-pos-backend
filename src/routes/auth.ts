@@ -7,9 +7,11 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { getDb, sql } from "../lib/db";
 
+import { isDeviceAuthorized, authorizeDevice, verifyWaiterPin } from "../lib/securityStore";
+
 const router = Router();
 
-// ── Helpers ─────────────────────────────────────────────────────────
+// 🍔 Helpers 🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔
 
 function signToken(payload: { staffId: string; role: string; name: string }): string {
   const secret = process.env.JWT_SECRET;
@@ -17,7 +19,30 @@ function signToken(payload: { staffId: string; role: string; name: string }): st
   return jwt.sign(payload, secret, { expiresIn: "7d" });
 }
 
-// ── GET /auth/waiters ───────────────────────────────────────────────
+// 🍔 POST /auth/register-device 🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔
+
+const registerDeviceSchema = z.object({
+  deviceId: z.string().min(1, "deviceId is required"),
+  masterPassword: z.string().min(1, "masterPassword is required"),
+});
+
+router.post("/register-device", async (req: Request, res: Response): Promise<void> => {
+  const parsed = registerDeviceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request payload" });
+    return;
+  }
+  const { deviceId, masterPassword } = parsed.data;
+  
+  const success = authorizeDevice(deviceId, masterPassword);
+  if (success) {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ error: "Invalid Master Password" });
+  }
+});
+
+// 🍔 GET /auth/waiters 🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔
 
 router.get("/waiters", async (req: Request, res: Response): Promise<void> => {
   try {
@@ -32,10 +57,12 @@ router.get("/waiters", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// ── POST /auth/login ────────────────────────────────────────────────
+// 🍔 POST /auth/login 🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔
 
 const loginSchema = z.object({
   waiterId: z.number(),
+  deviceId: z.string().min(1, "deviceId is required"),
+  pin: z.string().min(1, "pin is required"),
 });
 
 router.post("/login", async (req: Request, res: Response): Promise<void> => {
@@ -47,7 +74,19 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const { waiterId } = parsed.data;
+  const { waiterId, deviceId, pin } = parsed.data;
+
+  // 1. Verify Device
+  if (!isDeviceAuthorized(deviceId)) {
+    res.status(403).json({ error: "Device Not Authorized" });
+    return;
+  }
+
+  // 2. Verify PIN
+  if (!verifyWaiterPin(waiterId.toString(), pin)) {
+    res.status(401).json({ error: "Invalid PIN" });
+    return;
+  }
 
   try {
     const pool = await getDb();

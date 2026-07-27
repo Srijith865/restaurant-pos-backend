@@ -10,6 +10,9 @@ interface ApiService {
     @POST("auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
+    @POST("auth/register-device")
+    suspend fun registerDevice(@Body request: RegisterDeviceRequest)
+
     @GET("me")
     suspend fun getMe(): User
 

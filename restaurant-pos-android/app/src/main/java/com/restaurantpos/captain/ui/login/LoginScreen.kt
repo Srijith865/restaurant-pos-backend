@@ -18,12 +18,21 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.restaurantpos.captain.ui.components.AppButton
 import com.restaurantpos.captain.ui.theme.*
 
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
     viewModel: LoginViewModel = viewModel()
 ) {
+    if (viewModel.deviceNotAuthorized) {
+        DeviceNotAuthorizedScreen(viewModel)
+        return
+    }
+
     var expanded by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -101,6 +110,26 @@ fun LoginScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // PIN Input
+            OutlinedTextField(
+                value = viewModel.pin,
+                onValueChange = { if (it.length <= 4) viewModel.pin = it },
+                label = { Text("4-DIGIT PIN") },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White, RoundedCornerShape(8.dp)),
+                shape = RoundedCornerShape(8.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = PrimaryTeal,
+                    unfocusedBorderColor = BorderGrey,
+                    focusedLabelColor = PrimaryTeal
+                )
+            )
+
             if (viewModel.isLoadingWaiters) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -129,7 +158,74 @@ fun LoginScreen(
                 onClick = { viewModel.login(onLoginSuccess) },
                 modifier = Modifier.fillMaxWidth(),
                 isLoading = viewModel.isLoggingIn,
-                enabled = viewModel.selectedWaiter != null
+                enabled = viewModel.selectedWaiter != null && viewModel.pin.length == 4
+            )
+        }
+    }
+}
+
+@Composable
+fun DeviceNotAuthorizedScreen(viewModel: LoginViewModel) {
+    var masterPassword by remember { mutableStateOf("") }
+    
+    Scaffold(containerColor = BackgroundWarm) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Restaurant,
+                contentDescription = null,
+                tint = ErrorRed,
+                modifier = Modifier.size(64.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Device Not Authorized",
+                style = MaterialTheme.typography.headlineSmall,
+                color = ErrorRed,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "This device is not registered with Bluefox POS.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = SecondaryGrey
+            )
+            Spacer(modifier = Modifier.height(48.dp))
+
+            OutlinedTextField(
+                value = masterPassword,
+                onValueChange = { masterPassword = it },
+                label = { Text("Master Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White, RoundedCornerShape(8.dp)),
+                shape = RoundedCornerShape(8.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = PrimaryTeal,
+                    unfocusedBorderColor = BorderGrey
+                )
+            )
+
+            viewModel.errorMessage?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = it, color = ErrorRed, style = MaterialTheme.typography.bodySmall)
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            AppButton(
+                text = "Register Device",
+                onClick = { viewModel.registerDevice(masterPassword) {} },
+                modifier = Modifier.fillMaxWidth(),
+                isLoading = viewModel.isRegisteringDevice,
+                enabled = masterPassword.isNotEmpty()
             )
         }
     }
