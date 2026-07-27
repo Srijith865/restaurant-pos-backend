@@ -283,7 +283,7 @@ router.patch("/:id/items/:itemId", async (req: Request, res: Response): Promise<
   const { quantityDelta } = req.body;
 
   try {
-    await updateOrderItem("1", id, itemId, quantityDelta);
+    await updateOrderItem("1", String(id), String(itemId), quantityDelta);
     res.json({ success: true });
   } catch (err) {
     handleServiceError(res, err);
@@ -295,7 +295,7 @@ router.delete("/:id/items/:itemId", async (req: Request, res: Response): Promise
   const { id, itemId } = req.params;
 
   try {
-    await deleteOrderItem("1", id, itemId);
+    await deleteOrderItem("1", String(id), String(itemId));
     res.json({ success: true });
   } catch (err) {
     handleServiceError(res, err);
