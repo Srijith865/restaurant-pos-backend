@@ -11,6 +11,8 @@ import {
   generateBill,
   markOrderPaid,
   cancelOrder,
+  updateOrderItem,
+  deleteOrderItem
 } from "../services/orderService";
 import { getDb, sql } from "../lib/db";
 
@@ -270,6 +272,31 @@ router.post("/:id/cancel", async (req: Request, res: Response): Promise<void> =>
   try {
     const order = await cancelOrder("1", id);
     res.json(order);
+  } catch (err) {
+    handleServiceError(res, err);
+  }
+});
+
+// 🍔 PATCH /orders/:id/items/:itemId 🍔
+router.patch("/:id/items/:itemId", async (req: Request, res: Response): Promise<void> => {
+  const { id, itemId } = req.params;
+  const { quantityDelta } = req.body;
+
+  try {
+    await updateOrderItem("1", id, itemId, quantityDelta);
+    res.json({ success: true });
+  } catch (err) {
+    handleServiceError(res, err);
+  }
+});
+
+// 🍔 DELETE /orders/:id/items/:itemId 🍔
+router.delete("/:id/items/:itemId", async (req: Request, res: Response): Promise<void> => {
+  const { id, itemId } = req.params;
+
+  try {
+    await deleteOrderItem("1", id, itemId);
+    res.json({ success: true });
   } catch (err) {
     handleServiceError(res, err);
   }

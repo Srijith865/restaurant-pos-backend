@@ -170,6 +170,69 @@ class OrderViewModel(
     fun getTotal(): Double {
         return cart.sumOf { it.price * it.quantity }
     }
+
+    fun markOrderPaid(onSuccess: () -> Unit) {
+        val oId = orderId ?: existingOrder?.id ?: return
+        viewModelScope.launch {
+            isSending = true
+            try {
+                if (tokenStore.token.first() != "demo_token") {
+                    apiService.payOrder(oId)
+                }
+                onSuccess()
+            } catch (e: Exception) {
+                errorMessage = "Failed to mark as paid: ${e.message}"
+            } finally {
+                isSending = false
+            }
+        }
+    }
+
+    fun cancelOrder(onSuccess: () -> Unit) {
+        val oId = orderId ?: existingOrder?.id ?: return
+        viewModelScope.launch {
+            isSending = true
+            try {
+                if (tokenStore.token.first() != "demo_token") {
+                    apiService.cancelOrder(oId)
+                }
+                onSuccess()
+            } catch (e: Exception) {
+                errorMessage = "Failed to cancel order: ${e.message}"
+            } finally {
+                isSending = false
+            }
+        }
+    }
+
+    fun updateExistingItemQuantity(itemId: String, delta: Int) {
+        val oId = orderId ?: existingOrder?.id ?: return
+        viewModelScope.launch {
+            try {
+                if (tokenStore.token.first() != "demo_token") {
+                    apiService.updateItemQuantity(oId, itemId, UpdateItemRequest(delta))
+                    // Reload order to reflect new totals/quantities
+                    existingOrder = apiService.getOrderById(oId)
+                }
+            } catch (e: Exception) {
+                errorMessage = "Failed to update item: ${e.message}"
+            }
+        }
+    }
+
+    fun deleteExistingItem(itemId: String) {
+        val oId = orderId ?: existingOrder?.id ?: return
+        viewModelScope.launch {
+            try {
+                if (tokenStore.token.first() != "demo_token") {
+                    apiService.deleteItem(oId, itemId)
+                    existingOrder = apiService.getOrderById(oId)
+                }
+            } catch (e: Exception) {
+                errorMessage = "Failed to delete item: ${e.message}"
+            }
+        }
+    }
 }
 
 data class CartItemUI(

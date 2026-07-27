@@ -31,3 +31,7 @@ data class CartItem(
     val quantity: Int,
     val notes: String? = null
 )
+
+data class UpdateItemRequest(
+    val quantityDelta: Int
+)

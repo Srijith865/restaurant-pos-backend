@@ -36,4 +36,23 @@ interface ApiService {
 
     @GET("orders/{id}")
     suspend fun getOrderById(@Path("id") orderId: String): Order
+
+    @POST("orders/{id}/pay")
+    suspend fun payOrder(@Path("id") orderId: String): Order
+
+    @POST("orders/{id}/cancel")
+    suspend fun cancelOrder(@Path("id") orderId: String)
+
+    @PATCH("orders/{id}/items/{itemId}")
+    suspend fun updateItemQuantity(
+        @Path("id") orderId: String, 
+        @Path("itemId") itemId: String, 
+        @Body request: UpdateItemRequest
+    )
+
+    @DELETE("orders/{id}/items/{itemId}")
+    suspend fun deleteItem(
+        @Path("id") orderId: String, 
+        @Path("itemId") itemId: String
+    )
 }

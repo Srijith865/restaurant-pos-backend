@@ -7,8 +7,16 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
     const pool = await getDb();
     const result = await pool.request().query`
-      SELECT TableID, TableNumber, OutletID, Status
-      FROM RestaurantTables
+      SELECT 
+        t.TableID, 
+        t.TableNumber, 
+        t.OutletID, 
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM Orders o WHERE o.TableID = t.TableID AND (o.IsPaid = 0 OR o.IsPaid IS NULL)) 
+          THEN 'Occupied' 
+          ELSE 'Available' 
+        END as Status
+      FROM RestaurantTables t
     `;
 
     const tables = result.recordset.map((row) => ({

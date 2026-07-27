@@ -271,3 +271,43 @@ export async function cancelOrder(restaurantId: string, orderId: string, reason?
       DELETE FROM Orders WHERE OrderID = @orderId;
     `);
 }
+
+export async function updateOrderItem(restaurantId: string, orderId: string, itemId: string, quantityDelta: number) {
+  const pool = await getDb();
+  await pool.request()
+    .input("orderId", sql.Int, parseInt(orderId, 10))
+    .input("orderDetailId", sql.Int, parseInt(itemId, 10))
+    .input("qtyDelta", sql.Int, quantityDelta)
+    .query(`
+      UPDATE OrderDetails 
+      SET Quantity = Quantity + @qtyDelta, 
+          Amount = (Quantity + @qtyDelta) * Price 
+      WHERE OrderDetailID = @orderDetailId AND OrderID = @orderId;
+
+      UPDATE Orders 
+      SET TotalAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+      WHERE OrderID = @orderId;
+
+      UPDATE RestaurantTables 
+      SET CurrentAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+      WHERE TableID = (SELECT TableID FROM Orders WHERE OrderID = @orderId);
+    `);
+}
+
+export async function deleteOrderItem(restaurantId: string, orderId: string, itemId: string) {
+  const pool = await getDb();
+  await pool.request()
+    .input("orderId", sql.Int, parseInt(orderId, 10))
+    .input("orderDetailId", sql.Int, parseInt(itemId, 10))
+    .query(`
+      DELETE FROM OrderDetails WHERE OrderDetailID = @orderDetailId AND OrderID = @orderId;
+
+      UPDATE Orders 
+      SET TotalAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+      WHERE OrderID = @orderId;
+
+      UPDATE RestaurantTables 
+      SET CurrentAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+      WHERE TableID = (SELECT TableID FROM Orders WHERE OrderID = @orderId);
+    `);
+}

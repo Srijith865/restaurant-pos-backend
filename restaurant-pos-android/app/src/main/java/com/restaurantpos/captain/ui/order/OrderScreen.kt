@@ -63,6 +63,16 @@ fun OrderScreen(
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
+                    },
+                    actions = {
+                        if (orderId != null) {
+                            IconButton(onClick = { viewModel.markOrderPaid { onOrderSent() } }) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = "Mark as Paid", tint = TableAvailable)
+                            }
+                            IconButton(onClick = { viewModel.cancelOrder { onOrderSent() } }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Cancel Order", tint = ErrorRed)
+                            }
+                        }
                     }
                 )
             }
@@ -235,21 +245,15 @@ fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit) {
         ) {
             // Already Sent Items
             viewModel.existingOrder?.let { order ->
-                item {
-                    Text("Already Sent", style = MaterialTheme.typography.labelMedium, color = SecondaryGrey, fontWeight = FontWeight.Bold)
-                }
-                items(order.items) { item ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("${item.quantity}x ${item.name ?: "Item"}", color = SecondaryGrey, style = MaterialTheme.typography.bodyMedium)
-                        Text("Sent", color = SecondaryGrey, style = MaterialTheme.typography.labelSmall)
+                if (order.items.isNotEmpty()) {
+                    item {
+                        Text("Already Sent", style = MaterialTheme.typography.labelMedium, color = SecondaryGrey, fontWeight = FontWeight.Bold)
                     }
+                    items(order.items) { item ->
+                        ExistingItemRow(item, viewModel)
+                    }
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
                 }
-                item { Spacer(modifier = Modifier.height(8.dp)) }
             }
 
             // New Items in Cart
@@ -289,6 +293,56 @@ fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit) {
             enabled = viewModel.cart.isNotEmpty() && !viewModel.isSending,
             isLoading = viewModel.isSending
         )
+    }
+}
+
+@Composable
+fun ExistingItemRow(item: com.restaurantpos.captain.data.api.models.OrderItem, viewModel: OrderViewModel) {
+    Surface(
+        color = Color.Transparent,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(item.name ?: "Item", color = SecondaryGrey, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    if (item.price != null) {
+                        Text("₹${formatPrice(item.price)}", style = MaterialTheme.typography.bodySmall, color = SecondaryGrey)
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { viewModel.deleteExistingItem(item.menuItemId) },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = ErrorRed, modifier = Modifier.size(16.dp))
+                    }
+                    OutlinedIconButton(
+                        onClick = { viewModel.updateExistingItemQuantity(item.menuItemId, -1) },
+                        modifier = Modifier.size(28.dp),
+                        border = BorderStroke(1.dp, SecondaryGrey),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = SecondaryGrey)
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = "Minus", modifier = Modifier.size(14.dp))
+                    }
+                    Text("${item.quantity}", modifier = Modifier.padding(horizontal = 12.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = SecondaryGrey)
+                    OutlinedIconButton(
+                        onClick = { viewModel.updateExistingItemQuantity(item.menuItemId, 1) },
+                        modifier = Modifier.size(28.dp),
+                        border = BorderStroke(1.dp, SecondaryGrey),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = SecondaryGrey)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Plus", modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+        }
     }
 }
 
