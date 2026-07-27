@@ -1,61 +1,103 @@
-import fs from 'fs';
-import path from 'path';
+import { getDb, sql } from './db';
 
-const SECURITY_FILE = path.join(__dirname, '../../security.json');
 const MASTER_PASSWORD = 'bluefox2026';
 const DEFAULT_PIN = '3216';
 
-interface SecurityData {
-  authorizedDevices: string[];
-  waiterPins: Record<string, string>;
-}
-
-function loadData(): SecurityData {
-  if (fs.existsSync(SECURITY_FILE)) {
-    try {
-      const data = fs.readFileSync(SECURITY_FILE, 'utf-8');
-      return JSON.parse(data);
-    } catch (e) {
-      console.error('Failed to read security.json', e);
-    }
-  }
-  return { authorizedDevices: [], waiterPins: {} };
-}
-
-function saveData(data: SecurityData) {
+async function initSecurityTables() {
   try {
-    fs.writeFileSync(SECURITY_FILE, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error('Failed to write security.json', e);
+    const pool = await getDb();
+    
+    // Create AuthorizedDevices table
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AuthorizedDevices' and xtype='U')
+      CREATE TABLE AuthorizedDevices (
+        DeviceId VARCHAR(255) PRIMARY KEY,
+        CreatedAt DATETIME DEFAULT GETDATE()
+      )
+    `);
+
+    // Create WaiterPins table
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='WaiterPins' and xtype='U')
+      CREATE TABLE WaiterPins (
+        WaiterId VARCHAR(255) PRIMARY KEY,
+        Pin VARCHAR(255) NOT NULL,
+        UpdatedAt DATETIME DEFAULT GETDATE()
+      )
+    `);
+  } catch (err) {
+    console.error('Failed to initialize security tables', err);
   }
 }
 
-export function isDeviceAuthorized(deviceId: string): boolean {
+// Fire and forget initialization
+initSecurityTables();
+
+export async function isDeviceAuthorized(deviceId: string): Promise<boolean> {
   if (!deviceId) return false;
-  const data = loadData();
-  return data.authorizedDevices.includes(deviceId);
+  try {
+    const pool = await getDb();
+    const result = await pool.request()
+      .input("deviceId", sql.VarChar, deviceId)
+      .query(`SELECT DeviceId FROM AuthorizedDevices WHERE DeviceId = @deviceId`);
+    return result.recordset.length > 0;
+  } catch (err) {
+    console.error(err);
+    return false;
+  }
 }
 
-export function authorizeDevice(deviceId: string, masterPassword: string): boolean {
+export async function authorizeDevice(deviceId: string, masterPassword: string): Promise<boolean> {
   if (masterPassword !== MASTER_PASSWORD) {
     return false;
   }
-  const data = loadData();
-  if (!data.authorizedDevices.includes(deviceId)) {
-    data.authorizedDevices.push(deviceId);
-    saveData(data);
+  try {
+    const pool = await getDb();
+    await pool.request()
+      .input("deviceId", sql.VarChar, deviceId)
+      .query(`
+        IF NOT EXISTS (SELECT * FROM AuthorizedDevices WHERE DeviceId = @deviceId)
+        INSERT INTO AuthorizedDevices (DeviceId) VALUES (@deviceId)
+      `);
+    return true;
+  } catch (err) {
+    console.error(err);
+    return false;
   }
-  return true;
 }
 
-export function verifyWaiterPin(waiterId: string, pin: string): boolean {
-  const data = loadData();
-  const expectedPin = data.waiterPins[waiterId] || DEFAULT_PIN;
-  return pin === expectedPin;
+export async function verifyWaiterPin(waiterId: string, pin: string): Promise<boolean> {
+  try {
+    const pool = await getDb();
+    const result = await pool.request()
+      .input("waiterId", sql.VarChar, waiterId)
+      .query(`SELECT Pin FROM WaiterPins WHERE WaiterId = @waiterId`);
+      
+    if (result.recordset.length > 0) {
+      return result.recordset[0].Pin === pin;
+    } else {
+      // If no custom PIN exists in the table, use DEFAULT_PIN
+      return pin === DEFAULT_PIN;
+    }
+  } catch (err) {
+    console.error(err);
+    return false;
+  }
 }
 
-export function setWaiterPin(waiterId: string, newPin: string) {
-  const data = loadData();
-  data.waiterPins[waiterId] = newPin;
-  saveData(data);
+export async function setWaiterPin(waiterId: string, newPin: string) {
+  try {
+    const pool = await getDb();
+    await pool.request()
+      .input("waiterId", sql.VarChar, waiterId)
+      .input("pin", sql.VarChar, newPin)
+      .query(`
+        IF EXISTS (SELECT * FROM WaiterPins WHERE WaiterId = @waiterId)
+          UPDATE WaiterPins SET Pin = @pin, UpdatedAt = GETDATE() WHERE WaiterId = @waiterId
+        ELSE
+          INSERT INTO WaiterPins (WaiterId, Pin) VALUES (@waiterId, @pin)
+      `);
+  } catch (err) {
+    console.error(err);
+  }
 }

@@ -34,7 +34,7 @@ router.post("/register-device", async (req: Request, res: Response): Promise<voi
   }
   const { deviceId, masterPassword } = parsed.data;
   
-  const success = authorizeDevice(deviceId, masterPassword);
+  const success = await authorizeDevice(deviceId, masterPassword);
   if (success) {
     res.json({ success: true });
   } else {
@@ -55,7 +55,8 @@ router.post("/verify-device", async (req: Request, res: Response): Promise<void>
     return;
   }
   
-  if (isDeviceAuthorized(parsed.data.deviceId)) {
+  const authorized = await isDeviceAuthorized(parsed.data.deviceId);
+  if (authorized) {
     res.json({ authorized: true });
   } else {
     res.status(403).json({ error: "Device Not Authorized" });
@@ -77,7 +78,7 @@ router.get("/waiters", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// 🍔 POST /auth/login 🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔
+// 🍔 POST /auth/login 🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔
 
 const loginSchema = z.object({
   waiterId: z.number(),
@@ -97,13 +98,15 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
   const { waiterId, deviceId, pin } = parsed.data;
 
   // 1. Verify Device
-  if (!isDeviceAuthorized(deviceId)) {
+  const deviceAuthorized = await isDeviceAuthorized(deviceId);
+  if (!deviceAuthorized) {
     res.status(403).json({ error: "Device Not Authorized" });
     return;
   }
 
   // 2. Verify PIN
-  if (!verifyWaiterPin(waiterId.toString(), pin)) {
+  const pinValid = await verifyWaiterPin(waiterId.toString(), pin);
+  if (!pinValid) {
     res.status(401).json({ error: "Invalid PIN" });
     return;
   }
