@@ -13,6 +13,9 @@ interface ApiService {
     @POST("auth/register-device")
     suspend fun registerDevice(@Body request: RegisterDeviceRequest)
 
+    @POST("auth/verify-device")
+    suspend fun verifyDevice(@Body request: VerifyDeviceRequest)
+
     @GET("me")
     suspend fun getMe(): User
 

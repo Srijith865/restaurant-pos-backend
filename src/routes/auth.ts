@@ -42,6 +42,26 @@ router.post("/register-device", async (req: Request, res: Response): Promise<voi
   }
 });
 
+// 🍔 POST /auth/verify-device 🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔
+
+const verifyDeviceSchema = z.object({
+  deviceId: z.string().min(1, "deviceId is required"),
+});
+
+router.post("/verify-device", async (req: Request, res: Response): Promise<void> => {
+  const parsed = verifyDeviceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request payload" });
+    return;
+  }
+  
+  if (isDeviceAuthorized(parsed.data.deviceId)) {
+    res.json({ authorized: true });
+  } else {
+    res.status(403).json({ error: "Device Not Authorized" });
+  }
+});
+
 // 🍔 GET /auth/waiters 🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔
 
 router.get("/waiters", async (req: Request, res: Response): Promise<void> => {

@@ -34,7 +34,24 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         )
 
     init {
-        loadWaiters()
+        verifyDevice()
+    }
+
+    private fun verifyDevice() {
+        viewModelScope.launch {
+            try {
+                apiService.verifyDevice(com.restaurantpos.captain.data.api.models.VerifyDeviceRequest(deviceId))
+                // If it succeeds, the device is authorized. Load waiters.
+                loadWaiters()
+            } catch (e: retrofit2.HttpException) {
+                if (e.code() == 403) {
+                    deviceNotAuthorized = true
+                }
+            } catch (e: Exception) {
+                // Network error, maybe try to load waiters anyway or show error
+                errorMessage = "Cannot connect to server."
+            }
+        }
     }
 
     fun loadWaiters() {

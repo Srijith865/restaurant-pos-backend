@@ -18,6 +18,10 @@ data class RegisterDeviceRequest(
     val masterPassword: String
 )
 
+data class VerifyDeviceRequest(
+    val deviceId: String
+)
+
 data class LoginResponse(
     val token: String?,
     @SerializedName("restaurantId") val restaurantId: String? = null,
