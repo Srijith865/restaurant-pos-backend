@@ -41,15 +41,18 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 apiService.verifyDevice(com.restaurantpos.captain.data.api.models.VerifyDeviceRequest(deviceId))
-                // If it succeeds, the device is authorized. Load waiters.
                 loadWaiters()
             } catch (e: retrofit2.HttpException) {
                 if (e.code() == 403) {
                     deviceNotAuthorized = true
+                } else {
+                    // It might be 404 if server isn't updated yet, load waiters so UI doesn't break completely
+                    errorMessage = "Server returned ${e.code()}. Did you restart the backend?"
+                    loadWaiters()
                 }
             } catch (e: Exception) {
-                // Network error, maybe try to load waiters anyway or show error
                 errorMessage = "Cannot connect to server."
+                loadWaiters()
             }
         }
     }

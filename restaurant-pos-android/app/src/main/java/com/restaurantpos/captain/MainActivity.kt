@@ -44,11 +44,8 @@ fun MainApp() {
 
     LaunchedEffect(Unit) {
         val token = tokenStore.token.first()
-        startDestination = if (token != null) {
-            Screen.TableList.route
-        } else {
-            Screen.Login.route
-        }
+        // Always start at Login so waiters must enter their PIN
+        startDestination = Screen.Login.route
     }
 
     startDestination?.let { destination ->
