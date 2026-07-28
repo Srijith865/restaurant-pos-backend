@@ -47,7 +47,51 @@ fun OrderScreen(
     viewModel: OrderViewModel = viewModel(factory = OrderViewModelFactory(LocalContext.current.applicationContext as android.app.Application, tableId, orderId))
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    
+    var showPayConfirmDialog by remember { mutableStateOf(false) }
+    var showCancelConfirmDialog by remember { mutableStateOf(false) }
 
+    if (showPayConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showPayConfirmDialog = false },
+            title = { Text("Confirm Payment") },
+            text = { Text("Are you sure you want to mark this order as paid? The table will become available.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPayConfirmDialog = false
+                    viewModel.markOrderPaid { onOrderSent() }
+                }) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPayConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showCancelConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showCancelConfirmDialog = false },
+            title = { Text("Cancel Order") },
+            text = { Text("Are you sure you want to completely cancel this order? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCancelConfirmDialog = false
+                    viewModel.cancelOrder { onOrderSent() }
+                }) {
+                    Text("Confirm", color = ErrorRed)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCancelConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
     Scaffold(
         containerColor = BackgroundWarm,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -68,10 +112,10 @@ fun OrderScreen(
                     },
                     actions = {
                         if (orderId != null) {
-                            IconButton(onClick = { viewModel.markOrderPaid { onOrderSent() } }) {
+                            IconButton(onClick = { showPayConfirmDialog = true }) {
                                 Icon(Icons.Default.CheckCircle, contentDescription = "Mark as Paid", tint = TableAvailable)
                             }
-                            IconButton(onClick = { viewModel.cancelOrder { onOrderSent() } }) {
+                            IconButton(onClick = { showCancelConfirmDialog = true }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Cancel Order", tint = ErrorRed)
                             }
                         }
