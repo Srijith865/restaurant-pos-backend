@@ -257,6 +257,17 @@ export const api = {
   deleteDevice(id: string) {
     return request<void>(`/admin/devices/${id}`, { method: "DELETE" });
   },
+
+  getWaitersAccess() {
+    return request<{ WaiterID: number; WaiterName: string; allowtables: string; allowoutlets: string }[]>("/waiters");
+  },
+
+  updateWaiterAccess(id: number, allowtables: string, allowoutlets: string) {
+    return request(`/waiters/${id}/permissions`, {
+      method: "PUT",
+      body: JSON.stringify({ allowtables, allowoutlets }),
+    });
+  },
 };
 
 export function formatPrice(value: string | number): string {

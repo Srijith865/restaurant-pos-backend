@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import { api, formatPrice } from "../api/client";
-import type { DiningTable, MenuCategory, MenuItem, Staff } from "../api/types";
+import type { DiningTable, MenuCategory, MenuItem } from "../api/types";
 
 type AdminTab = "categories" | "items" | "tables" | "staff" | "outlets" | "devices";
 
@@ -687,23 +687,23 @@ function TablesTab({ onError }: { onError: (msg: string) => void }) {
 
 // ── Staff tab ───────────────────────────────────────────────────────
 
-function StaffTab({ onError }: { onError: (msg: string) => void }) {
-  const [staff, setStaff] = useState<Staff[]>([]);
+// ── Waiters Access tab ──────────────────────────────────────────────────────
+
+function WaitersTab({ onError }: { onError: (msg: string) => void }) {
+  const [waiters, setWaiters] = useState<{ WaiterID: number; WaiterName: string; allowtables: string; allowoutlets: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
   
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState("waiter");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [allowtables, setAllowtables] = useState("");
+  const [allowoutlets, setAllowoutlets] = useState("");
   
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      setStaff(await api.getStaff());
+      setWaiters(await api.getWaitersAccess());
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to load staff");
+      onError(err instanceof Error ? err.message : "Failed to load waiters");
     } finally {
       setLoading(false);
     }
@@ -715,139 +715,74 @@ function StaffTab({ onError }: { onError: (msg: string) => void }) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (editingId === null) return;
     setSaving(true);
     onError("");
 
     try {
-      await api.createStaff({ name, phone, password, role });
-      setName("");
-      setPhone("");
-      setPassword("");
-      setRole("waiter");
-      setShowAdd(false);
+      await api.updateWaiterAccess(editingId, allowtables, allowoutlets);
+      setEditingId(null);
       await load();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Create failed");
+      onError(err instanceof Error ? err.message : "Update failed");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this staff member?")) return;
-    onError("");
-
-    try {
-      await api.deleteStaff(id);
-      await load();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Delete failed");
-    }
-  }
-
-  if (loading) return <p className="text-on-surface-variant">Loading staff…</p>;
+  if (loading) return <p className="text-on-surface-variant">Loading staff access…</p>;
 
   return (
     <div>
-      {!showAdd && (
-        <button
-          type="button"
-          onClick={() => setShowAdd(true)}
-          className="mb-lg flex items-center gap-sm bg-primary px-md py-sm text-label-md text-on-primary hover:opacity-90"
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-            add
-          </span>
-          Add Staff
-        </button>
-      )}
-
-      {showAdd && (
+      {editingId !== null && (
         <FormPanel
-          title="Add Staff"
-          onClose={() => {
-            setShowAdd(false);
-            setName("");
-            setPhone("");
-            setPassword("");
-            setRole("waiter");
-          }}
+          title="Edit Staff Access"
+          onClose={() => setEditingId(null)}
           onSubmit={handleSubmit}
-          submitLabel="Create Staff"
+          submitLabel="Save Access"
           loading={saving}
         >
           <div>
-            <label className="text-label-sm uppercase text-on-surface-variant">Name</label>
+            <label className="text-label-sm uppercase text-on-surface-variant">Allowed Tables (comma separated names/IDs)</label>
             <input
               className={fieldClassName()}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
+              value={allowtables}
+              onChange={(e) => setAllowtables(e.target.value)}
+              placeholder="e.g. T1, T2, A1"
             />
           </div>
           <div>
-            <label className="text-label-sm uppercase text-on-surface-variant">Phone (Login ID)</label>
+            <label className="text-label-sm uppercase text-on-surface-variant">Allowed Outlets (comma separated IDs)</label>
             <input
               className={fieldClassName()}
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
+              value={allowoutlets}
+              onChange={(e) => setAllowoutlets(e.target.value)}
+              placeholder="e.g. 1, 2"
             />
-          </div>
-          <div>
-            <label className="text-label-sm uppercase text-on-surface-variant">Password</label>
-            <input
-              type="password"
-              className={fieldClassName()}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-            />
-          </div>
-          <div>
-            <label className="text-label-sm uppercase text-on-surface-variant">Role</label>
-            <select
-              className={fieldClassName()}
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              required
-            >
-              <option value="waiter">Waiter (POS App)</option>
-              <option value="kitchen">Kitchen (KOT Display)</option>
-              <option value="admin">Admin (Dashboard)</option>
-            </select>
           </div>
         </FormPanel>
       )}
 
-      {staff.length === 0 ? (
+      {waiters.length === 0 ? (
         <p className="text-on-surface-variant">No staff yet.</p>
       ) : (
-        <AdminTable headers={["Name", "Phone", "Role", "Status", "Actions"]}>
-          {staff.map((s) => (
-            <AdminRow key={s.id} cols={5}>
-              <div className="font-medium text-primary">{s.name}</div>
-              <div className="text-on-surface-variant">{s.phone}</div>
-              <div className="uppercase text-on-surface-variant text-label-sm">{s.role}</div>
-              <div>
-                <span
-                  className={`rounded px-sm py-xs text-label-sm ${
-                    s.isActive
-                      ? "bg-secondary-fixed text-on-secondary-fixed"
-                      : "bg-error-container text-on-error-container"
-                  }`}
-                >
-                  {s.isActive ? "Active" : "Inactive"}
-                </span>
-              </div>
+        <AdminTable headers={["Waiter Name", "Allowed Tables", "Allowed Outlets", "Actions"]}>
+          {waiters.map((w) => (
+            <AdminRow key={w.WaiterID} cols={4}>
+              <div className="font-medium text-primary">{w.WaiterName}</div>
+              <div className="text-on-surface-variant">{w.allowtables || "All Tables"}</div>
+              <div className="text-on-surface-variant">{w.allowoutlets || "All Outlets"}</div>
               <div>
                 <button
                   type="button"
-                  onClick={() => handleDelete(s.id)}
-                  className="rounded border border-outline-variant px-sm py-xs text-label-sm text-error hover:bg-error-container/30"
+                  onClick={() => {
+                    setEditingId(w.WaiterID);
+                    setAllowtables(w.allowtables || "");
+                    setAllowoutlets(w.allowoutlets || "");
+                  }}
+                  className="rounded border border-outline-variant px-sm py-xs text-label-sm text-primary hover:bg-surface-container mr-sm"
                 >
-                  Delete
+                  Edit Access
                 </button>
               </div>
             </AdminRow>
@@ -981,7 +916,7 @@ const TABS: { key: AdminTab; label: string }[] = [
   { key: "items", label: "Menu Items" },
   { key: "tables", label: "Tables" },
   { key: "outlets", label: "Outlets" },
-  { key: "staff", label: "Staff" },
+  { key: "staff", label: "Waiters Access" },
   { key: "devices", label: "Devices" },
 ];
 
@@ -1139,7 +1074,7 @@ export default function AdminPage() {
         {tab === "items" && <ItemsTab onError={setError} />}
         { tab === "tables" && <TablesTab onError={setError} /> }
         { tab === "outlets" && <OutletsTab onError={setError} /> }
-        { tab === "staff" && <StaffTab onError={setError} /> }
+        { tab === "staff" && <WaitersTab onError={setError} /> }
         { tab === "devices" && <DevicesTab onError={setError} /> }
       </div>
     </>

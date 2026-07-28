@@ -262,8 +262,62 @@ export async function markOrderPaid(restaurantId: string, orderId: string, payme
   return await updateKotStatus(restaurantId, orderId, "", "");
 }
 
-export async function cancelOrder(restaurantId: string, orderId: string, reason?: string) {
+async function logAudit(pool: any, orderIdInt: number, action: string, waiterId: string, orderDetailId?: number, deltaQty?: number) {
+  try {
+    const orderRes = await pool.request()
+      .input("orderId", sql.Int, orderIdInt)
+      .query(`
+        SELECT 
+          o.TableID,
+          ISNULL(rt.TableNumber, '') as TableNumber,
+          rt.OutletID
+        FROM Orders o
+        LEFT JOIN RestaurantTables rt ON o.TableID = rt.TableID
+        WHERE o.OrderID = @orderId
+      `);
+    if (orderRes.recordset.length === 0) return;
+    const orderInfo = orderRes.recordset[0];
+
+    let itemsQuery = `
+      SELECT od.ItemID, m.ItemName, od.Quantity 
+      FROM OrderDetails od
+      JOIN MenuItems m ON od.ItemID = m.ItemID
+      WHERE od.OrderID = @orderId
+    `;
+    
+    const req = pool.request().input("orderId", sql.Int, orderIdInt);
+    if (orderDetailId) {
+      itemsQuery += ` AND od.OrderDetailID = @odId`;
+      req.input("odId", sql.Int, orderDetailId);
+    }
+    
+    const itemsRes = await req.query(itemsQuery);
+    
+    for (const item of itemsRes.recordset) {
+      await pool.request()
+        .input("kot", sql.VarChar, orderIdInt.toString())
+        .input("table", sql.VarChar, orderInfo.TableNumber)
+        .input("itemId", sql.Int, item.ItemID)
+        .input("itemName", sql.VarChar, item.ItemName)
+        .input("delta", sql.Int, deltaQty !== undefined ? deltaQty : -item.Quantity)
+        .input("action", sql.VarChar, action)
+        .input("waiter", sql.VarChar, waiterId)
+        .input("outlet", sql.Int, orderInfo.OutletID)
+        .input("time", sql.DateTime, new Date())
+        .query(`
+          INSERT INTO KOTAuditLog (KOTNumber, TableNumber, ItemID, ItemName, DeltaQty, KOTAction, WaiterID, OutletID, LogTime, IsPrintedToKitchen, online)
+          VALUES (@kot, @table, @itemId, @itemName, @delta, @action, @waiter, @outlet, @time, 0, 1)
+        `);
+    }
+  } catch (err) {
+    console.error("Failed to log audit", err);
+  }
+}
+
+export async function cancelOrder(restaurantId: string, orderId: string, waiterId: string, reason?: string) {
   const pool = await getDb();
+  await logAudit(pool, parseInt(orderId, 10), "Cancel Order", waiterId);
+  
   await pool.request()
     .input("orderId", sql.Int, parseInt(orderId, 10))
     .query(`
@@ -272,8 +326,10 @@ export async function cancelOrder(restaurantId: string, orderId: string, reason?
     `);
 }
 
-export async function updateOrderItem(restaurantId: string, orderId: string, itemId: string, quantityDelta: number) {
+export async function updateOrderItem(restaurantId: string, orderId: string, itemId: string, quantityDelta: number, waiterId: string) {
   const pool = await getDb();
+  await logAudit(pool, parseInt(orderId, 10), "Update Item", waiterId, parseInt(itemId, 10), quantityDelta);
+
   await pool.request()
     .input("orderId", sql.Int, parseInt(orderId, 10))
     .input("orderDetailId", sql.Int, parseInt(itemId, 10))
@@ -294,8 +350,10 @@ export async function updateOrderItem(restaurantId: string, orderId: string, ite
     `);
 }
 
-export async function deleteOrderItem(restaurantId: string, orderId: string, itemId: string) {
+export async function deleteOrderItem(restaurantId: string, orderId: string, itemId: string, waiterId: string) {
   const pool = await getDb();
+  await logAudit(pool, parseInt(orderId, 10), "Delete Item", waiterId, parseInt(itemId, 10));
+
   await pool.request()
     .input("orderId", sql.Int, parseInt(orderId, 10))
     .input("orderDetailId", sql.Int, parseInt(itemId, 10))

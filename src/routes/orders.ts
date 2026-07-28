@@ -270,7 +270,7 @@ router.post("/:id/cancel", async (req: Request, res: Response): Promise<void> =>
   const id = req.params.id as string;
 
   try {
-    const order = await cancelOrder("1", id);
+    const order = await cancelOrder("1", id, req.staffId || "");
     res.json(order);
   } catch (err) {
     handleServiceError(res, err);
@@ -283,7 +283,7 @@ router.patch("/:id/items/:itemId", async (req: Request, res: Response): Promise<
   const { quantityDelta } = req.body;
 
   try {
-    await updateOrderItem("1", String(id), String(itemId), quantityDelta);
+    await updateOrderItem("1", String(id), String(itemId), quantityDelta, req.staffId || "");
     res.json({ success: true });
   } catch (err) {
     handleServiceError(res, err);
@@ -295,7 +295,7 @@ router.delete("/:id/items/:itemId", async (req: Request, res: Response): Promise
   const { id, itemId } = req.params;
 
   try {
-    await deleteOrderItem("1", String(id), String(itemId));
+    await deleteOrderItem("1", String(id), String(itemId), req.staffId || "");
     res.json({ success: true });
   } catch (err) {
     handleServiceError(res, err);

@@ -6,6 +6,23 @@ const router = Router();
 router.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
     const pool = await getDb();
+    let allowedTables = new Set<string>();
+    let hasTableRestrictions = false;
+
+    if (req.staffId && req.staffId !== "admin") {
+      const waiterRes = await pool.request()
+        .input("waiterId", sql.Int, parseInt(req.staffId, 10))
+        .query(`SELECT allowtables FROM Waiters WHERE WaiterID = @waiterId`);
+      
+      if (waiterRes.recordset.length > 0) {
+        const allowtables = waiterRes.recordset[0].allowtables;
+        if (allowtables && allowtables.trim().length > 0) {
+          hasTableRestrictions = true;
+          allowtables.split(',').forEach((t: string) => allowedTables.add(t.trim().toLowerCase()));
+        }
+      }
+    }
+
     const result = await pool.request().query`
       SELECT 
         t.TableID, 
@@ -19,7 +36,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       FROM RestaurantTables t
     `;
 
-    const tables = result.recordset.map((row) => ({
+    let tables = result.recordset.map((row) => ({
       id: row.TableID.toString(),
       restaurantId: "1",
       number: parseInt(row.TableNumber) || 0,
@@ -28,6 +45,10 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       isOccupied: row.Status === "Occupied",
       outletId: row.OutletID ? row.OutletID.toString() : null,
     }));
+
+    if (hasTableRestrictions) {
+      tables = tables.filter(t => allowedTables.has(t.label.toLowerCase()) || allowedTables.has(t.id));
+    }
 
     res.json(tables);
   } catch (err) {

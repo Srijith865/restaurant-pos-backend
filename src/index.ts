@@ -24,6 +24,7 @@ import tableRoutes from "./routes/tables";
 import orderRoutes from "./routes/orders";
 import kotRoutes from "./routes/kot";
 import adminRoutes from "./routes/admin";
+import waitersRoutes from "./routes/waiters";
 
 import outletRoutes from "./routes/outlets";
 import { requireAuth } from "./middleware/auth";
@@ -44,6 +45,7 @@ app.use("/tables", requireAuth, tableRoutes);
 app.use("/orders", requireAuth, orderRoutes);
 app.use("/kot", requireAuth, kotRoutes);
 app.use("/admin", requireAuth, adminRoutes);
+app.use("/waiters", requireAuth, waitersRoutes);
 
 app.use("/outlets", requireAuth, outletRoutes);
 
