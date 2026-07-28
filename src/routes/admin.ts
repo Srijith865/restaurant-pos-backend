@@ -7,8 +7,7 @@ const router = Router();
 
 // Middleware to ensure user is an admin
 router.use((req, res, next) => {
-  // @ts-ignore
-  if (req.user?.role !== "admin") {
+  if (req.role !== "admin") {
     res.status(403).json({ error: "Admin access required" });
     return;
   }
