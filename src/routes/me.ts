@@ -4,6 +4,17 @@ import { getDb, sql } from "../lib/db";
 const router = Router();
 
 router.get("/", async (req: Request, res: Response): Promise<void> => {
+  if (req.staffId === "admin") {
+    res.json({
+      id: "admin",
+      name: "Administrator",
+      role: "admin",
+      restaurantId: "1",
+      restaurantName: "Bluefox Restaurant",
+    });
+    return;
+  }
+
   try {
     const pool = await getDb();
     const result = await pool.request()

@@ -140,4 +140,20 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// 🍔 POST /auth/admin-login 🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔
+router.post("/admin-login", async (req: Request, res: Response): Promise<void> => {
+  const { password } = req.body;
+  
+  if (password === (process.env.ADMIN_PASSWORD || "bluefox2026")) {
+    const token = signToken({
+      staffId: "admin",
+      role: "admin",
+      name: "Administrator",
+    });
+    res.json({ token, staffId: "admin" });
+  } else {
+    res.status(401).json({ error: "Invalid Admin Password" });
+  }
+});
+
 export default router;

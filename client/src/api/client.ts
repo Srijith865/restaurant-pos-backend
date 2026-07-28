@@ -75,6 +75,13 @@ export const api = {
     });
   },
 
+  adminLogin(password: string) {
+    return request<LoginResponse>("/auth/admin-login", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+  },
+
   getMe() {
     return request<MeResponse>("/me");
   },
