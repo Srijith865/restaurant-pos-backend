@@ -28,7 +28,7 @@ router.get("/devices", async (req: Request, res: Response): Promise<void> => {
 // 🍔 POST /admin/devices/:id/approve
 router.post("/devices/:id/approve", async (req: Request, res: Response): Promise<void> => {
   try {
-    await setDeviceApproval(req.params.id, true);
+    await setDeviceApproval(req.params.id as string, true);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to approve device" });
@@ -38,7 +38,7 @@ router.post("/devices/:id/approve", async (req: Request, res: Response): Promise
 // 🍔 POST /admin/devices/:id/revoke
 router.post("/devices/:id/revoke", async (req: Request, res: Response): Promise<void> => {
   try {
-    await setDeviceApproval(req.params.id, false);
+    await setDeviceApproval(req.params.id as string, false);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to revoke device" });
@@ -50,7 +50,7 @@ router.delete("/devices/:id", async (req: Request, res: Response): Promise<void>
   try {
     const pool = await getDb();
     await pool.request()
-      .input("deviceId", sql.VarChar, req.params.id)
+      .input("deviceId", sql.VarChar, req.params.id as string)
       .query(`DELETE FROM AuthorizedDevices WHERE DeviceId = @deviceId`);
     res.json({ success: true });
   } catch (err) {
