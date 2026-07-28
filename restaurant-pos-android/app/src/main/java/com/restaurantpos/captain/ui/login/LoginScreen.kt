@@ -166,8 +166,6 @@ fun LoginScreen(
 
 @Composable
 fun DeviceNotAuthorizedScreen(viewModel: LoginViewModel) {
-    var masterPassword by remember { mutableStateOf("") }
-    
     Scaffold(containerColor = BackgroundWarm) { padding ->
         Column(
             modifier = Modifier
@@ -180,53 +178,42 @@ fun DeviceNotAuthorizedScreen(viewModel: LoginViewModel) {
             Icon(
                 imageVector = Icons.Default.Restaurant,
                 contentDescription = null,
-                tint = ErrorRed,
+                tint = PrimaryTeal,
                 modifier = Modifier.size(64.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Device Not Authorized",
+                text = "Waiting for Admin Approval",
                 style = MaterialTheme.typography.headlineSmall,
-                color = ErrorRed,
+                color = PrimaryText,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "This device is not registered with Bluefox POS.",
+                text = "This device needs to be approved by an Administrator in the web dashboard.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = SecondaryGrey
+                color = SecondaryGrey,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(48.dp))
 
-            OutlinedTextField(
-                value = masterPassword,
-                onValueChange = { masterPassword = it },
-                label = { Text("Master Password") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White, RoundedCornerShape(8.dp)),
-                shape = RoundedCornerShape(8.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = PrimaryTeal,
-                    unfocusedBorderColor = BorderGrey
-                )
-            )
-
             viewModel.errorMessage?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(text = it, color = ErrorRed, style = MaterialTheme.typography.bodySmall)
+                Text(text = it, color = if (it.contains("Error") || it.contains("fail")) ErrorRed else PrimaryTeal, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
-
             AppButton(
-                text = "Register Device",
-                onClick = { viewModel.registerDevice(masterPassword) {} },
+                text = "Request Approval",
+                onClick = { viewModel.registerDevice {} },
                 modifier = Modifier.fillMaxWidth(),
-                isLoading = viewModel.isRegisteringDevice,
-                enabled = masterPassword.isNotEmpty()
+                isLoading = viewModel.isRegisteringDevice
             )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            TextButton(onClick = { viewModel.checkApproval() }) {
+                Text("Check Status", color = PrimaryTeal)
+            }
         }
     }
 }

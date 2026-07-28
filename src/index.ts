@@ -23,18 +23,19 @@ import itemRoutes from "./routes/items";
 import tableRoutes from "./routes/tables";
 import orderRoutes from "./routes/orders";
 import kotRoutes from "./routes/kot";
+import adminRoutes from "./routes/admin";
 
 import outletRoutes from "./routes/outlets";
 import { requireAuth } from "./middleware/auth";
 
 const app = express();
 
-// ── Global middleware ───────────────────────────────────────────────
+// 🍔 Global middleware 🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔
 app.use(cors());
 app.use(helmet());
 app.use(express.json());
 
-// ── Routes ──────────────────────────────────────────────────────────
+// 🍔 Routes 🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔🍔
 app.use("/auth", authRoutes);
 app.use("/me", requireAuth, meRoutes);
 app.use("/categories", requireAuth, categoryRoutes);
@@ -42,6 +43,7 @@ app.use("/items", requireAuth, itemRoutes);
 app.use("/tables", requireAuth, tableRoutes);
 app.use("/orders", requireAuth, orderRoutes);
 app.use("/kot", requireAuth, kotRoutes);
+app.use("/admin", requireAuth, adminRoutes);
 
 app.use("/outlets", requireAuth, outletRoutes);
 

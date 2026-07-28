@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, formatPrice } from "../api/client";
 import type { DiningTable, MenuCategory, MenuItem, Staff } from "../api/types";
 
-type AdminTab = "categories" | "items" | "tables" | "staff" | "outlets";
+type AdminTab = "categories" | "items" | "tables" | "staff" | "outlets" | "devices";
 
 function ErrorBanner({ message, onDismiss }: { message: string; onDismiss?: () => void }) {
   return (
@@ -982,7 +982,116 @@ const TABS: { key: AdminTab; label: string }[] = [
   { key: "tables", label: "Tables" },
   { key: "outlets", label: "Outlets" },
   { key: "staff", label: "Staff" },
+  { key: "devices", label: "Devices" },
 ];
+
+function DevicesTab({ onError }: { onError: (msg: string) => void }) {
+  const [devices, setDevices] = useState<{ DeviceId: string; IsApproved: boolean; CreatedAt: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      setDevices(await api.getDevices());
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to load devices");
+    } finally {
+      setLoading(false);
+    }
+  }, [onError]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleApprove(id: string) {
+    onError("");
+    try {
+      await api.approveDevice(id);
+      await load();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Approval failed");
+    }
+  }
+
+  async function handleRevoke(id: string) {
+    onError("");
+    try {
+      await api.revokeDevice(id);
+      await load();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Revoke failed");
+    }
+  }
+  
+  async function handleDelete(id: string) {
+    if (!confirm("Are you sure you want to permanently delete this device?")) return;
+    onError("");
+    try {
+      await api.deleteDevice(id);
+      await load();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Delete failed");
+    }
+  }
+
+  if (loading) return <p className="text-on-surface-variant">Loading devices…</p>;
+
+  return (
+    <div>
+      {devices.length === 0 ? (
+        <p className="text-on-surface-variant">No devices found.</p>
+      ) : (
+        <AdminTable headers={["Device ID", "Status", "Registered", "Actions"]}>
+          {devices.map((device) => (
+            <AdminRow key={device.DeviceId} cols={4}>
+              <div className="font-medium text-primary">{device.DeviceId}</div>
+              <div>
+                <span
+                  className={`rounded px-sm py-xs text-label-sm ${
+                    device.IsApproved
+                      ? "bg-secondary-fixed text-on-secondary-fixed"
+                      : "bg-error-container text-on-error-container"
+                  }`}
+                >
+                  {device.IsApproved ? "Approved" : "Pending"}
+                </span>
+              </div>
+              <div className="text-on-surface-variant text-label-sm">
+                {new Date(device.CreatedAt).toLocaleString()}
+              </div>
+              <div className="flex gap-2">
+                {!device.IsApproved ? (
+                  <button
+                    type="button"
+                    onClick={() => handleApprove(device.DeviceId)}
+                    className="rounded border border-outline-variant px-sm py-xs text-label-sm text-primary hover:bg-primary-container/30"
+                  >
+                    Approve
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleRevoke(device.DeviceId)}
+                    className="rounded border border-outline-variant px-sm py-xs text-label-sm text-error hover:bg-error-container/30"
+                  >
+                    Revoke
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleDelete(device.DeviceId)}
+                  className="rounded border border-outline-variant px-sm py-xs text-label-sm text-error hover:bg-error-container/30"
+                >
+                  Delete
+                </button>
+              </div>
+            </AdminRow>
+          ))}
+        </AdminTable>
+      )}
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>("categories");
@@ -1031,6 +1140,7 @@ export default function AdminPage() {
         { tab === "tables" && <TablesTab onError={setError} /> }
         { tab === "outlets" && <OutletsTab onError={setError} /> }
         { tab === "staff" && <StaffTab onError={setError} /> }
+        { tab === "devices" && <DevicesTab onError={setError} /> }
       </div>
     </>
   );

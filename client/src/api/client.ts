@@ -234,6 +234,22 @@ export const api = {
   deleteOutlet(id: string) {
     return request<void>(`/outlets/${id}`, { method: "DELETE" });
   },
+
+  getDevices() {
+    return request<{ DeviceId: string; IsApproved: boolean; CreatedAt: string }[]>("/admin/devices");
+  },
+
+  approveDevice(id: string) {
+    return request<void>(`/admin/devices/${id}/approve`, { method: "POST" });
+  },
+
+  revokeDevice(id: string) {
+    return request<void>(`/admin/devices/${id}/revoke`, { method: "POST" });
+  },
+
+  deleteDevice(id: string) {
+    return request<void>(`/admin/devices/${id}`, { method: "DELETE" });
+  },
 };
 
 export function formatPrice(value: string | number): string {

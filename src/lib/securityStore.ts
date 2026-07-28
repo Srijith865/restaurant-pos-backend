@@ -1,6 +1,5 @@
 import { getDb, sql } from './db';
 
-const MASTER_PASSWORD = 'bluefox2026';
 const DEFAULT_PIN = '3216';
 
 async function initSecurityTables() {
@@ -10,10 +9,20 @@ async function initSecurityTables() {
     // Create AuthorizedDevices table
     await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AuthorizedDevices' and xtype='U')
-      CREATE TABLE AuthorizedDevices (
-        DeviceId VARCHAR(255) PRIMARY KEY,
-        CreatedAt DATETIME DEFAULT GETDATE()
-      )
+      BEGIN
+        CREATE TABLE AuthorizedDevices (
+          DeviceId VARCHAR(255) PRIMARY KEY,
+          IsApproved BIT DEFAULT 0,
+          CreatedAt DATETIME DEFAULT GETDATE()
+        )
+      END
+      ELSE
+      BEGIN
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE Name = N'IsApproved' AND Object_ID = Object_ID(N'AuthorizedDevices'))
+        BEGIN
+            ALTER TABLE AuthorizedDevices ADD IsApproved BIT DEFAULT 0;
+        END
+      END
     `);
 
     // Create WaiterPins table
@@ -33,36 +42,66 @@ async function initSecurityTables() {
 // Fire and forget initialization
 initSecurityTables();
 
-export async function isDeviceAuthorized(deviceId: string): Promise<boolean> {
-  if (!deviceId) return false;
+export async function getDeviceStatus(deviceId: string): Promise<{ exists: boolean, isApproved: boolean }> {
+  if (!deviceId) return { exists: false, isApproved: false };
   try {
     const pool = await getDb();
     const result = await pool.request()
       .input("deviceId", sql.VarChar, deviceId)
-      .query(`SELECT DeviceId FROM AuthorizedDevices WHERE DeviceId = @deviceId`);
-    return result.recordset.length > 0;
+      .query(`SELECT IsApproved FROM AuthorizedDevices WHERE DeviceId = @deviceId`);
+    
+    if (result.recordset.length > 0) {
+      return { exists: true, isApproved: !!result.recordset[0].IsApproved };
+    }
+    return { exists: false, isApproved: false };
   } catch (err) {
     console.error(err);
-    return false;
+    return { exists: false, isApproved: false };
   }
 }
 
-export async function authorizeDevice(deviceId: string, masterPassword: string): Promise<boolean> {
-  if (masterPassword !== MASTER_PASSWORD) {
-    return false;
-  }
+export async function registerDevice(deviceId: string): Promise<boolean> {
   try {
     const pool = await getDb();
     await pool.request()
       .input("deviceId", sql.VarChar, deviceId)
       .query(`
         IF NOT EXISTS (SELECT * FROM AuthorizedDevices WHERE DeviceId = @deviceId)
-        INSERT INTO AuthorizedDevices (DeviceId) VALUES (@deviceId)
+        INSERT INTO AuthorizedDevices (DeviceId, IsApproved) VALUES (@deviceId, 0)
       `);
     return true;
   } catch (err) {
     console.error(err);
     return false;
+  }
+}
+
+export async function getAllDevices() {
+  try {
+    const pool = await getDb();
+    const result = await pool.request().query(`
+      SELECT DeviceId, IsApproved, CreatedAt 
+      FROM AuthorizedDevices 
+      ORDER BY CreatedAt DESC
+    `);
+    return result.recordset;
+  } catch (err) {
+    console.error(err);
+    return [];
+  }
+}
+
+export async function setDeviceApproval(deviceId: string, isApproved: boolean) {
+  try {
+    const pool = await getDb();
+    await pool.request()
+      .input("deviceId", sql.VarChar, deviceId)
+      .input("isApproved", sql.Bit, isApproved ? 1 : 0)
+      .query(`
+        UPDATE AuthorizedDevices SET IsApproved = @isApproved WHERE DeviceId = @deviceId
+      `);
+  } catch (err) {
+    console.error(err);
   }
 }
 

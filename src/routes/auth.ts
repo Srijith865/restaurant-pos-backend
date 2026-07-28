@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { getDb, sql } from "../lib/db";
 
-import { isDeviceAuthorized, authorizeDevice, verifyWaiterPin } from "../lib/securityStore";
+import { getDeviceStatus, registerDevice, verifyWaiterPin } from "../lib/securityStore";
 
 const router = Router();
 
@@ -23,7 +23,6 @@ function signToken(payload: { staffId: string; role: string; name: string }): st
 
 const registerDeviceSchema = z.object({
   deviceId: z.string().min(1, "deviceId is required"),
-  masterPassword: z.string().min(1, "masterPassword is required"),
 });
 
 router.post("/register-device", async (req: Request, res: Response): Promise<void> => {
@@ -32,13 +31,13 @@ router.post("/register-device", async (req: Request, res: Response): Promise<voi
     res.status(400).json({ error: "Invalid request payload" });
     return;
   }
-  const { deviceId, masterPassword } = parsed.data;
+  const { deviceId } = parsed.data;
   
-  const success = await authorizeDevice(deviceId, masterPassword);
+  const success = await registerDevice(deviceId);
   if (success) {
     res.json({ success: true });
   } else {
-    res.status(401).json({ error: "Invalid Master Password" });
+    res.status(500).json({ error: "Failed to register device" });
   }
 });
 
@@ -55,11 +54,11 @@ router.post("/verify-device", async (req: Request, res: Response): Promise<void>
     return;
   }
   
-  const authorized = await isDeviceAuthorized(parsed.data.deviceId);
-  if (authorized) {
+  const status = await getDeviceStatus(parsed.data.deviceId);
+  if (status.isApproved) {
     res.json({ authorized: true });
   } else {
-    res.status(403).json({ error: "Device Not Authorized" });
+    res.status(403).json({ error: "Device Not Authorized or Pending Approval" });
   }
 });
 
@@ -98,8 +97,8 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
   const { waiterId, deviceId, pin } = parsed.data;
 
   // 1. Verify Device
-  const deviceAuthorized = await isDeviceAuthorized(deviceId);
-  if (!deviceAuthorized) {
+  const status = await getDeviceStatus(deviceId);
+  if (!status.isApproved) {
     res.status(403).json({ error: "Device Not Authorized" });
     return;
   }

@@ -14,8 +14,7 @@ data class LoginRequest(
 )
 
 data class RegisterDeviceRequest(
-    val deviceId: String,
-    val masterPassword: String
+    val deviceId: String
 )
 
 data class VerifyDeviceRequest(

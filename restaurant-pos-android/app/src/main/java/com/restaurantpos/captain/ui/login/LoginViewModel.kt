@@ -112,25 +112,24 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun registerDevice(masterPassword: String, onSuccess: () -> Unit) {
-        if (masterPassword.isEmpty()) {
-            errorMessage = "Please enter Master Password"
-            return
-        }
+    fun registerDevice(onSuccess: () -> Unit) {
         viewModelScope.launch {
             isRegisteringDevice = true
             errorMessage = null
             try {
-                apiService.registerDevice(com.restaurantpos.captain.data.api.models.RegisterDeviceRequest(deviceId, masterPassword))
-                deviceNotAuthorized = false
+                apiService.registerDevice(com.restaurantpos.captain.data.api.models.RegisterDeviceRequest(deviceId))
+                // Do not immediately assume success, it still needs admin approval.
+                errorMessage = "Device registered! Please wait for Admin approval."
                 onSuccess()
-            } catch (e: retrofit2.HttpException) {
-                errorMessage = "Invalid Master Password"
             } catch (e: Exception) {
                 errorMessage = "Error: ${e.message}"
             } finally {
                 isRegisteringDevice = false
             }
         }
+    }
+    
+    fun checkApproval() {
+        verifyDevice()
     }
 }
