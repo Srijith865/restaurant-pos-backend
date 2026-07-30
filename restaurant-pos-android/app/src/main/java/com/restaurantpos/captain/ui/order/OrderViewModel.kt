@@ -168,7 +168,9 @@ class OrderViewModel(
     }
 
     fun getTotal(): Double {
-        return cart.sumOf { it.price * it.quantity }
+        val cartTotal = cart.sumOf { it.price * it.quantity }
+        val existingTotal = existingOrder?.total ?: 0.0
+        return cartTotal + existingTotal
     }
 
     fun markOrderPaid(onSuccess: () -> Unit) {
