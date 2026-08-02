@@ -286,8 +286,21 @@ fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit, onShowSentIt
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Current Order", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = PrimaryText)
-            if (viewModel.cart.isNotEmpty()) {
-                Text("${viewModel.cart.size} items", style = MaterialTheme.typography.bodySmall, color = SecondaryText)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                viewModel.existingOrder?.let { order ->
+                    if (order.items.isNotEmpty()) {
+                        TextButton(
+                            onClick = onShowSentItems,
+                            modifier = Modifier.padding(end = 4.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text("View Sent (${order.items.size})", color = PrimaryTeal, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+                if (viewModel.cart.isNotEmpty()) {
+                    Text("${viewModel.cart.size} items", style = MaterialTheme.typography.bodySmall, color = SecondaryText)
+                }
             }
         }
         
@@ -297,22 +310,6 @@ fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit, onShowSentIt
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Sent Items Button
-            viewModel.existingOrder?.let { order ->
-                if (order.items.isNotEmpty()) {
-                    item {
-                        OutlinedButton(
-                            onClick = onShowSentItems,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("View Sent Items (${order.items.size})", color = PrimaryTeal, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    item { Spacer(modifier = Modifier.height(8.dp)) }
-                }
-            }
-
             // New Items in Cart
             if (viewModel.cart.isNotEmpty()) {
                 item {
