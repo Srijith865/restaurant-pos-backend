@@ -50,6 +50,14 @@ fun OrderScreen(
     
     var showPayConfirmDialog by remember { mutableStateOf(false) }
     var showCancelConfirmDialog by remember { mutableStateOf(false) }
+    var showSentItems by remember { mutableStateOf(false) }
+
+    if (showSentItems) {
+        SentItemsDialog(
+            viewModel = viewModel,
+            onDismiss = { showSentItems = false }
+        )
+    }
 
     if (showPayConfirmDialog) {
         AlertDialog(
@@ -197,7 +205,7 @@ fun OrderScreen(
                 color = SurfaceWhite,
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
             ) {
-                CartContent(viewModel, onOrderSent)
+                CartContent(viewModel, onOrderSent, onShowSentItems = { showSentItems = true })
             }
         }
     }
@@ -266,7 +274,7 @@ fun MenuItemCard(item: MenuItem, onAddClick: () -> Unit) {
 }
 
 @Composable
-fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit) {
+fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit, onShowSentItems: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -289,14 +297,17 @@ fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit) {
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Already Sent Items
+            // Sent Items Button
             viewModel.existingOrder?.let { order ->
                 if (order.items.isNotEmpty()) {
                     item {
-                        Text("Already Sent", style = MaterialTheme.typography.labelMedium, color = SecondaryGrey, fontWeight = FontWeight.Bold)
-                    }
-                    items(order.items) { item ->
-                        ExistingItemRow(item, viewModel)
+                        OutlinedButton(
+                            onClick = onShowSentItems,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("View Sent Items (${order.items.size})", color = PrimaryTeal, fontWeight = FontWeight.Bold)
+                        }
                     }
                     item { Spacer(modifier = Modifier.height(8.dp)) }
                 }
@@ -471,4 +482,41 @@ class OrderViewModelFactory(
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
         return OrderViewModel(application, tableId, orderId) as T
     }
+}
+
+@Composable
+fun SentItemsDialog(viewModel: OrderViewModel, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Already Sent Items") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                LazyColumn(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    viewModel.existingOrder?.let { order ->
+                        items(order.items) { item ->
+                            ExistingItemRow(item, viewModel)
+                        }
+                    }
+                }
+                HorizontalDivider(color = DividerGrey, modifier = Modifier.padding(vertical = 12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Sent Total", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = PrimaryText)
+                    val sentTotal = viewModel.existingOrder?.total ?: 0.0
+                    Text("₹${formatPrice(sentTotal)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = PrimaryTeal)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
