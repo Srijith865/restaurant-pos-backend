@@ -8,7 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.restaurantpos.captain.ui.theme.PrimaryTeal
+import com.restaurantpos.captain.ui.theme.PrimaryGreen
 import com.restaurantpos.captain.ui.theme.SurfaceWhite
 
 @Composable
@@ -17,7 +17,7 @@ fun LoadingView(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator(color = PrimaryTeal)
+        CircularProgressIndicator(color = PrimaryGreen)
     }
 }
 
@@ -43,7 +43,7 @@ fun ErrorView(
         Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = onRetry,
-            colors = ButtonDefaults.buttonColors(containerColor = PrimaryTeal),
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
             shape = RoundedCornerShape(12.dp)
         ) {
             Text("Retry", color = SurfaceWhite)
@@ -64,9 +64,9 @@ fun AppButton(
         modifier = modifier.height(48.dp),
         enabled = enabled && !isLoading,
         colors = ButtonDefaults.buttonColors(
-            containerColor = PrimaryTeal,
+            containerColor = PrimaryGreen,
             contentColor = SurfaceWhite,
-            disabledContainerColor = PrimaryTeal.copy(alpha = 0.6f),
+            disabledContainerColor = PrimaryGreen.copy(alpha = 0.6f),
             disabledContentColor = SurfaceWhite.copy(alpha = 0.6f)
         ),
         shape = RoundedCornerShape(12.dp)

@@ -36,7 +36,7 @@ fun LoginScreen(
     var expanded by remember { mutableStateOf(false) }
 
     Scaffold(
-        containerColor = BackgroundWarm
+        containerColor = BackgroundSlate
     ) { padding ->
         Column(
             modifier = Modifier
@@ -49,20 +49,20 @@ fun LoginScreen(
             Icon(
                 imageVector = Icons.Default.Restaurant,
                 contentDescription = null,
-                tint = PrimaryTeal,
+                tint = PrimaryGreen,
                 modifier = Modifier.size(64.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "Bluefox POS",
                 style = MaterialTheme.typography.headlineLarge,
-                color = PrimaryText,
+                color = TextDeepSlate,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = "Sign in to continue",
                 style = MaterialTheme.typography.bodyMedium,
-                color = SecondaryGrey
+                color = TextSlate
             )
             Spacer(modifier = Modifier.height(48.dp))
 
@@ -84,10 +84,12 @@ fun LoginScreen(
                     },
                     shape = RoundedCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PrimaryTeal,
-                        unfocusedBorderColor = BorderGrey,
-                        focusedLabelColor = PrimaryTeal
+                        focusedBorderColor = PrimaryGreen,
+                        unfocusedBorderColor = BorderSoft,
+                        focusedLabelColor = PrimaryGreen,
+                        unfocusedLabelColor = TextSlate
                     ),
+                    textStyle = MaterialTheme.typography.bodyMedium,
                     enabled = !viewModel.isLoadingWaiters
                 )
 
@@ -124,16 +126,18 @@ fun LoginScreen(
                     .background(Color.White, RoundedCornerShape(8.dp)),
                 shape = RoundedCornerShape(8.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = PrimaryTeal,
-                    unfocusedBorderColor = BorderGrey,
-                    focusedLabelColor = PrimaryTeal
-                )
+                    focusedBorderColor = PrimaryGreen,
+                    unfocusedBorderColor = BorderSoft,
+                    focusedLabelColor = PrimaryGreen,
+                    unfocusedLabelColor = TextSlate
+                ),
+                textStyle = MaterialTheme.typography.bodyMedium
             )
 
             if (viewModel.isLoadingWaiters) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    color = PrimaryTeal
+                    color = PrimaryGreen
                 )
             }
             
@@ -146,7 +150,7 @@ fun LoginScreen(
                 )
                 if (it.contains("load waiters")) {
                     TextButton(onClick = { viewModel.loadWaiters() }) {
-                        Text("Retry", color = PrimaryTeal)
+                        Text("Retry", color = PrimaryGreen)
                     }
                 }
             }
@@ -166,7 +170,7 @@ fun LoginScreen(
 
 @Composable
 fun DeviceNotAuthorizedScreen(viewModel: LoginViewModel) {
-    Scaffold(containerColor = BackgroundWarm) { padding ->
+    Scaffold(containerColor = BackgroundSlate) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -178,27 +182,27 @@ fun DeviceNotAuthorizedScreen(viewModel: LoginViewModel) {
             Icon(
                 imageVector = Icons.Default.Restaurant,
                 contentDescription = null,
-                tint = PrimaryTeal,
+                tint = PrimaryGreen,
                 modifier = Modifier.size(64.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "Waiting for Admin Approval",
                 style = MaterialTheme.typography.headlineSmall,
-                color = PrimaryText,
+                color = TextDeepSlate,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "This device needs to be approved by an Administrator in the web dashboard.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = SecondaryGrey,
+                color = TextSlate,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(48.dp))
 
             viewModel.errorMessage?.let {
-                Text(text = it, color = if (it.contains("Error") || it.contains("fail")) ErrorRed else PrimaryTeal, style = MaterialTheme.typography.bodyMedium)
+                Text(text = it, color = if (it.contains("Error") || it.contains("fail")) ErrorRed else PrimaryGreen, style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
@@ -212,7 +216,7 @@ fun DeviceNotAuthorizedScreen(viewModel: LoginViewModel) {
             Spacer(modifier = Modifier.height(16.dp))
             
             TextButton(onClick = { viewModel.checkApproval() }) {
-                Text("Check Status", color = PrimaryTeal)
+                Text("Check Status", color = PrimaryGreen)
             }
         }
     }

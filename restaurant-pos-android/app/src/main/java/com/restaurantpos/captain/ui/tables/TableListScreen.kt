@@ -6,6 +6,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
@@ -18,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.restaurantpos.captain.data.api.models.Table
 import com.restaurantpos.captain.ui.components.ErrorView
@@ -35,30 +39,33 @@ fun TableListScreen(
     val scope = rememberCoroutineScope()
 
     Scaffold(
-        containerColor = BackgroundWarm,
+        containerColor = BackgroundSlate,
         topBar = {
-            Surface(shadowElevation = 4.dp) {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = SurfaceWhite,
-                        titleContentColor = PrimaryText,
-                        actionIconContentColor = PrimaryTeal
-                    ),
-                    title = {
-                        Column {
-                            Text(viewModel.user?.restaurantName ?: "Loading...", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(viewModel.user?.name ?: "", style = MaterialTheme.typography.bodySmall, color = SecondaryText)
+            Surface(shadowElevation = 0.dp, color = SurfaceWhite) {
+                Column {
+                    TopAppBar(
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = SurfaceWhite,
+                            titleContentColor = TextDeepSlate,
+                            actionIconContentColor = TextSlate
+                        ),
+                        title = {
+                            Column {
+                                Text(viewModel.user?.restaurantName ?: "Loading...", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(viewModel.user?.name ?: "", style = MaterialTheme.typography.labelMedium, color = TextSlate)
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = { viewModel.refresh() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                            }
+                            IconButton(onClick = { viewModel.logout(onLogout) }) {
+                                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout")
+                            }
                         }
-                    },
-                    actions = {
-                        IconButton(onClick = { viewModel.refresh() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                        }
-                        IconButton(onClick = { viewModel.logout(onLogout) }) {
-                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout")
-                        }
-                    }
-                )
+                    )
+                    HorizontalDivider(color = DividerGrey)
+                }
             }
         }
     ) { padding ->
@@ -99,26 +106,35 @@ fun TableCard(table: Table, onClick: () -> Unit) {
             .padding(8.dp)
             .fillMaxWidth()
             .height(110.dp)
-            .shadow(2.dp, RoundedCornerShape(12.dp))
             .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (table.isOccupied) TableOccupied else TableAvailable
-        )
+            containerColor = if (table.isOccupied) StatusOccupiedLight else SurfaceWhite,
+            contentColor = TextDeepSlate
+        ),
+        border = BorderStroke(1.dp, if (table.isOccupied) StatusOccupied else BorderSoft)
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.align(Alignment.Center).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = table.label,
                     style = MaterialTheme.typography.headlineMedium,
-                    color = Color.White,
+                    color = if (table.isOccupied) StatusOccupied else PrimaryGreen,
                     fontWeight = FontWeight.Bold
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = if (table.isOccupied) "Occupied" else "Available",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.9f)
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextSlate
                 )
+            }
+            
+            // Status Indicator (Top Right)
+            Row(modifier = Modifier.align(Alignment.TopEnd).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(6.dp).background(if (table.isOccupied) StatusOccupied else StatusAvailable, CircleShape))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(if (table.isOccupied) "BUSY" else "OPEN", style = MaterialTheme.typography.labelMedium.copy(fontSize = 10.sp), color = TextSlate)
             }
         }
     }

@@ -101,16 +101,16 @@ fun OrderScreen(
         )
     }
     Scaffold(
-        containerColor = BackgroundWarm,
+        containerColor = BackgroundSlate,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Surface(shadowElevation = 2.dp) {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = SurfaceWhite,
-                        titleContentColor = PrimaryText,
-                        navigationIconContentColor = PrimaryTeal,
-                        actionIconContentColor = PrimaryTeal
+                        titleContentColor = TextDeepSlate,
+                        navigationIconContentColor = PrimaryGreen,
+                        actionIconContentColor = PrimaryGreen
                     ),
                     title = { Text("Table $tableLabel", fontWeight = FontWeight.Bold) },
                     navigationIcon = {
@@ -121,7 +121,7 @@ fun OrderScreen(
                     actions = {
                         if (orderId != null) {
                             IconButton(onClick = { showPayConfirmDialog = true }) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = "Mark as Paid", tint = TableAvailable)
+                                Icon(Icons.Default.CheckCircle, contentDescription = "Mark as Paid", tint = StatusAvailable)
                             }
                             IconButton(onClick = { showCancelConfirmDialog = true }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Cancel Order", tint = ErrorRed)
@@ -159,9 +159,9 @@ fun OrderScreen(
                     Surface(
                         onClick = { viewModel.selectCategory(category.id) },
                         shape = CircleShape,
-                        color = if (isSelected) PrimaryTeal else SurfaceWhite,
-                        contentColor = if (isSelected) SurfaceWhite else SecondaryGrey,
-                        border = if (isSelected) null else BorderStroke(1.dp, BorderGrey)
+                        color = if (isSelected) PrimaryGreen else SurfaceWhite,
+                        contentColor = if (isSelected) SurfaceWhite else TextSlate,
+                        border = if (isSelected) null else BorderStroke(1.dp, BorderSoft)
                     ) {
                         Text(
                             text = category.name,
@@ -216,12 +216,12 @@ fun MenuItemCard(item: MenuItem, onAddClick: () -> Unit) {
     Card(
         modifier = Modifier
             .padding(8.dp)
-            .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(12.dp)),
-        shape = RoundedCornerShape(12.dp),
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = SurfaceWhite
-        )
+        ),
+        border = BorderStroke(1.dp, BorderSoft)
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -229,12 +229,12 @@ fun MenuItemCard(item: MenuItem, onAddClick: () -> Unit) {
                     text = item.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (item.isAvailable) PrimaryText else InactiveGrey
+                    color = if (item.isAvailable) TextDeepSlate else TextSlate
                 )
                 Text(
                     text = "₹${formatPrice(item.price)}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (item.isAvailable) PrimaryTeal else InactiveGrey,
+                    color = if (item.isAvailable) PrimaryGreen else TextSlate,
                     fontWeight = FontWeight.Medium
                 )
                 if (!item.isAvailable) {
@@ -261,7 +261,7 @@ fun MenuItemCard(item: MenuItem, onAddClick: () -> Unit) {
                         .padding(8.dp)
                         .size(32.dp),
                     shape = CircleShape,
-                    color = PrimaryTeal,
+                    color = PrimaryGreen,
                     contentColor = Color.White
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -285,7 +285,7 @@ fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit, onShowSentIt
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Current Order", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = PrimaryText)
+            Text("Current Order", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextDeepSlate)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 viewModel.existingOrder?.let { order ->
                     if (order.items.isNotEmpty()) {
@@ -294,12 +294,12 @@ fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit, onShowSentIt
                             modifier = Modifier.padding(end = 4.dp),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                         ) {
-                            Text("View Sent (${order.items.size})", color = PrimaryTeal, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                            Text("View Sent (${order.items.size})", color = PrimaryGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
                 if (viewModel.cart.isNotEmpty()) {
-                    Text("${viewModel.cart.size} items", style = MaterialTheme.typography.bodySmall, color = SecondaryText)
+                    Text("${viewModel.cart.size} items", style = MaterialTheme.typography.bodySmall, color = TextSlate)
                 }
             }
         }
@@ -313,7 +313,7 @@ fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit, onShowSentIt
             // New Items in Cart
             if (viewModel.cart.isNotEmpty()) {
                 item {
-                    Text("New Items", style = MaterialTheme.typography.labelMedium, color = PrimaryTeal, fontWeight = FontWeight.Bold)
+                    Text("New Items", style = MaterialTheme.typography.labelMedium, color = PrimaryGreen, fontWeight = FontWeight.Bold)
                 }
                 items(viewModel.cart) { item ->
                     CartItemRow(item, viewModel)
@@ -321,7 +321,7 @@ fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit, onShowSentIt
             } else if (viewModel.existingOrder == null) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        Text("No items added yet", color = InactiveGrey, style = MaterialTheme.typography.bodyMedium)
+                        Text("No items added yet", color = TextSlate, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -334,8 +334,8 @@ fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit, onShowSentIt
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Total Amount", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = PrimaryText)
-            Text("₹${formatPrice(viewModel.getTotal())}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = PrimaryTeal)
+            Text("Total Amount", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextDeepSlate)
+            Text("₹${formatPrice(viewModel.getTotal())}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = PrimaryGreen)
         }
         
         Spacer(modifier = Modifier.height(16.dp))
@@ -363,9 +363,9 @@ fun ExistingItemRow(item: com.restaurantpos.captain.data.api.models.OrderItem, v
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(item.name ?: "Item", color = SecondaryGrey, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(item.name ?: "Item", color = TextSlate, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     if (item.price != null) {
-                        Text("₹${formatPrice(item.price)}", style = MaterialTheme.typography.bodySmall, color = SecondaryGrey)
+                        Text("₹${formatPrice(item.price)}", style = MaterialTheme.typography.bodySmall, color = TextSlate)
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -378,19 +378,19 @@ fun ExistingItemRow(item: com.restaurantpos.captain.data.api.models.OrderItem, v
                     OutlinedIconButton(
                         onClick = { viewModel.updateExistingItemQuantity(item.menuItemId, -1) },
                         modifier = Modifier.size(28.dp),
-                        border = BorderStroke(1.dp, SecondaryGrey),
+                        border = BorderStroke(1.dp, TextSlate),
                         shape = RoundedCornerShape(8.dp),
-                        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = SecondaryGrey)
+                        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = TextSlate)
                     ) {
                         Icon(Icons.Default.Remove, contentDescription = "Minus", modifier = Modifier.size(14.dp))
                     }
-                    Text("${item.quantity}", modifier = Modifier.padding(horizontal = 12.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = SecondaryGrey)
+                    Text("${item.quantity}", modifier = Modifier.padding(horizontal = 12.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = TextSlate)
                     OutlinedIconButton(
                         onClick = { viewModel.updateExistingItemQuantity(item.menuItemId, 1) },
                         modifier = Modifier.size(28.dp),
-                        border = BorderStroke(1.dp, SecondaryGrey),
+                        border = BorderStroke(1.dp, TextSlate),
                         shape = RoundedCornerShape(8.dp),
-                        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = SecondaryGrey)
+                        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = TextSlate)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Plus", modifier = Modifier.size(14.dp))
                     }
@@ -413,16 +413,16 @@ fun CartItemRow(item: CartItemUI, viewModel: OrderViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(item.name, color = PrimaryText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    Text("₹${formatPrice(item.price)}", style = MaterialTheme.typography.bodySmall, color = SecondaryText)
+                    Text(item.name, color = TextDeepSlate, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text("₹${formatPrice(item.price)}", style = MaterialTheme.typography.bodySmall, color = TextSlate)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedIconButton(
                         onClick = { viewModel.updateQuantity(item.menuItemId, -1) },
                         modifier = Modifier.size(28.dp),
-                        border = BorderStroke(1.dp, PrimaryTeal),
+                        border = BorderStroke(1.dp, PrimaryGreen),
                         shape = RoundedCornerShape(8.dp),
-                        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = PrimaryTeal)
+                        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = PrimaryGreen)
                     ) {
                         Icon(Icons.Default.Remove, contentDescription = "Minus", modifier = Modifier.size(14.dp))
                     }
@@ -430,9 +430,9 @@ fun CartItemRow(item: CartItemUI, viewModel: OrderViewModel) {
                     OutlinedIconButton(
                         onClick = { viewModel.updateQuantity(item.menuItemId, 1) },
                         modifier = Modifier.size(28.dp),
-                        border = BorderStroke(1.dp, PrimaryTeal),
+                        border = BorderStroke(1.dp, PrimaryGreen),
                         shape = RoundedCornerShape(8.dp),
-                        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = PrimaryTeal)
+                        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = PrimaryGreen)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Plus", modifier = Modifier.size(14.dp))
                     }
@@ -449,9 +449,9 @@ fun CartItemRow(item: CartItemUI, viewModel: OrderViewModel) {
                     .height(48.dp),
                 textStyle = MaterialTheme.typography.bodySmall,
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = BackgroundWarm,
-                    unfocusedContainerColor = BackgroundWarm,
-                    focusedIndicatorColor = PrimaryTeal,
+                    focusedContainerColor = BackgroundSlate,
+                    unfocusedContainerColor = BackgroundSlate,
+                    focusedIndicatorColor = PrimaryGreen,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
                 shape = RoundedCornerShape(8.dp),
@@ -504,9 +504,9 @@ fun SentItemsDialog(viewModel: OrderViewModel, onDismiss: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Sent Total", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = PrimaryText)
+                    Text("Sent Total", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = TextDeepSlate)
                     val sentTotal = viewModel.existingOrder?.total ?: 0.0
-                    Text("₹${formatPrice(sentTotal)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = PrimaryTeal)
+                    Text("₹${formatPrice(sentTotal)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = PrimaryGreen)
                 }
             }
         },

@@ -9,15 +9,15 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val LightColorScheme = lightColorScheme(
-    primary = PrimaryTeal,
+    primary = PrimaryGreen,
     onPrimary = SurfaceWhite,
-    background = BackgroundWarm,
-    onBackground = PrimaryText,
+    background = BackgroundSlate,
+    onBackground = TextDeepSlate,
     surface = SurfaceWhite,
-    onSurface = PrimaryText,
+    onSurface = TextDeepSlate,
     surfaceVariant = SurfaceWhite,
-    onSurfaceVariant = SecondaryText,
-    outline = BorderGrey,
+    onSurfaceVariant = TextSlate,
+    outline = BorderSoft,
     error = ErrorRed
 )
 
@@ -28,7 +28,7 @@ fun MyApplicationTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         val window = (view.context as Activity).window
-        window.statusBarColor = PrimaryTeal.toArgb()
+        window.statusBarColor = PrimaryGreen.toArgb()
         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
     }
 
