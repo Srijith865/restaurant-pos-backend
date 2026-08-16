@@ -28,6 +28,8 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         t.TableID, 
         t.TableNumber, 
         t.OutletID, 
+        (SELECT TOP 1 o.OrderDate FROM Orders o WHERE o.TableID = t.TableID AND (o.IsPaid = 0 OR o.IsPaid IS NULL) ORDER BY o.OrderDate DESC) as OrderStartTime,
+        (SELECT TOP 1 o.TotalAmount FROM Orders o WHERE o.TableID = t.TableID AND (o.IsPaid = 0 OR o.IsPaid IS NULL) ORDER BY o.OrderDate DESC) as CurrentAmount,
         CASE 
           WHEN EXISTS (SELECT 1 FROM Orders o WHERE o.TableID = t.TableID AND (o.IsPaid = 0 OR o.IsPaid IS NULL)) 
           THEN 'Occupied' 
@@ -44,6 +46,8 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       status: row.Status === "Occupied" ? "occupied" : "available",
       isOccupied: row.Status === "Occupied",
       outletId: row.OutletID ? row.OutletID.toString() : null,
+      orderStartTime: row.OrderStartTime ? new Date(row.OrderStartTime).toISOString() : null,
+      currentAmount: row.CurrentAmount != null ? parseFloat(row.CurrentAmount) : null,
     }));
 
     if (hasTableRestrictions) {

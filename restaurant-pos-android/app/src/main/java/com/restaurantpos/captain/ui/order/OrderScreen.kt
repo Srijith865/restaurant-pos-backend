@@ -24,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -174,7 +175,7 @@ fun OrderScreen(
             }
 
             // Menu Items Grid
-            Box(modifier = Modifier.weight(0.5f)) {
+            Box(modifier = Modifier.weight(1f)) {
                 if (viewModel.isLoading) {
                     LoadingView()
                 } else if (viewModel.errorMessage != null) {
@@ -200,10 +201,11 @@ fun OrderScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.5f)
-                    .shadow(16.dp, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+                    .animateContentSize()
+                    .then(if (viewModel.cart.isNotEmpty()) Modifier.fillMaxHeight(0.5f) else Modifier.wrapContentHeight()),
                 color = SurfaceWhite,
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                shadowElevation = 16.dp
             ) {
                 CartContent(viewModel, onOrderSent, onShowSentItems = { showSentItems = true })
             }
@@ -275,78 +277,72 @@ fun MenuItemCard(item: MenuItem, onAddClick: () -> Unit) {
 
 @Composable
 fun CartContent(viewModel: OrderViewModel, onOrderSent: () -> Unit, onShowSentItems: () -> Unit) {
+    val isEmpty = viewModel.cart.isEmpty()
+
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
+            .then(if (isEmpty) Modifier.wrapContentHeight() else Modifier.fillMaxHeight())
             .padding(16.dp)
     ) {
+        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Current Order", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextDeepSlate)
+            Text("Current Order", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TextDeepSlate)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                viewModel.existingOrder?.let { order ->
-                    if (order.items.isNotEmpty()) {
-                        TextButton(
-                            onClick = onShowSentItems,
-                            modifier = Modifier.padding(end = 4.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                        ) {
-                            Text("View Sent (${order.items.size})", color = PrimaryGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
-                        }
+                if (viewModel.existingOrder?.items?.isNotEmpty() == true) {
+                    TextButton(onClick = onShowSentItems, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+                        Text("View Sent (${viewModel.existingOrder?.items?.size})", style = MaterialTheme.typography.labelLarge, color = PrimaryGreen, fontWeight = FontWeight.Bold)
                     }
                 }
                 if (viewModel.cart.isNotEmpty()) {
                     Text("${viewModel.cart.size} items", style = MaterialTheme.typography.bodySmall, color = TextSlate)
+                } else if (viewModel.existingOrder?.items.isNullOrEmpty()) {
+                    Text("0 items", style = MaterialTheme.typography.bodySmall, color = TextSlate)
                 }
             }
         }
         
-        HorizontalDivider(color = DividerGrey, modifier = Modifier.padding(vertical = 12.dp))
+        if (!isEmpty) {
+            HorizontalDivider(color = DividerGrey, modifier = Modifier.padding(vertical = 12.dp))
 
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // New Items in Cart
-            if (viewModel.cart.isNotEmpty()) {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // New Items in Cart
                 item {
                     Text("New Items", style = MaterialTheme.typography.labelMedium, color = PrimaryGreen, fontWeight = FontWeight.Bold)
                 }
                 items(viewModel.cart) { item ->
                     CartItemRow(item, viewModel)
                 }
-            } else if (viewModel.existingOrder == null) {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        Text("No items added yet", color = TextSlate, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
             }
-        }
 
-        HorizontalDivider(color = DividerGrey, modifier = Modifier.padding(vertical = 12.dp))
-        
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Total Amount", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextDeepSlate)
-            Text("₹${formatPrice(viewModel.getTotal())}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = PrimaryGreen)
+            HorizontalDivider(color = DividerGrey, modifier = Modifier.padding(vertical = 12.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Total Amount", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextDeepSlate)
+                Text("₹${formatPrice(viewModel.getTotal())}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = PrimaryGreen)
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            AppButton(
+                text = "Send to Kitchen",
+                onClick = { viewModel.sendOrder(onOrderSent) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = viewModel.cart.isNotEmpty() && !viewModel.isSending,
+                isLoading = viewModel.isSending
+            )
         }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        AppButton(
-            text = "Send to Kitchen",
-            onClick = { viewModel.sendOrder(onOrderSent) },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = viewModel.cart.isNotEmpty() && !viewModel.isSending,
-            isLoading = viewModel.isSending
-        )
     }
 }
 

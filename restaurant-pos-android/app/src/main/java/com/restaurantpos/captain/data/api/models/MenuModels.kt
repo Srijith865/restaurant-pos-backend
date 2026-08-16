@@ -3,7 +3,9 @@ package com.restaurantpos.captain.data.api.models
 data class Table(
     val id: String,
     val label: String,
-    val isOccupied: Boolean
+    val isOccupied: Boolean,
+    val orderStartTime: String? = null,
+    val currentAmount: Double? = null
 )
 
 data class Category(

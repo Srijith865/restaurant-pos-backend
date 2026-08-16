@@ -12,6 +12,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Timer
+import java.time.Instant
+import java.time.Duration
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -101,11 +104,22 @@ fun TableListScreen(
 
 @Composable
 fun TableCard(table: Table, onClick: () -> Unit) {
+    val elapsedMinutes = remember(table.orderStartTime) {
+        try {
+            if (table.orderStartTime != null) {
+                val start = Instant.parse(table.orderStartTime)
+                Duration.between(start, Instant.now()).toMinutes()
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     Card(
         modifier = Modifier
             .padding(8.dp)
             .fillMaxWidth()
-            .height(110.dp)
+            .height(130.dp) // increased height slightly to fit new info
             .clickable { onClick() },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
@@ -115,19 +129,29 @@ fun TableCard(table: Table, onClick: () -> Unit) {
         border = BorderStroke(1.dp, if (table.isOccupied) StatusOccupied else BorderSoft)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.align(Alignment.Center).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(modifier = Modifier.align(Alignment.Center).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = table.label,
                     style = MaterialTheme.typography.headlineMedium,
                     color = if (table.isOccupied) StatusOccupied else PrimaryGreen,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = if (table.isOccupied) "Occupied" else "Available",
                     style = MaterialTheme.typography.labelMedium,
                     color = TextSlate
                 )
+                
+                if (table.isOccupied && table.currentAmount != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Total: ₹%.2f".format(table.currentAmount),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDeepSlate
+                    )
+                }
             }
             
             // Status Indicator (Top Right)
@@ -135,6 +159,15 @@ fun TableCard(table: Table, onClick: () -> Unit) {
                 Box(modifier = Modifier.size(6.dp).background(if (table.isOccupied) StatusOccupied else StatusAvailable, CircleShape))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(if (table.isOccupied) "BUSY" else "OPEN", style = MaterialTheme.typography.labelMedium.copy(fontSize = 10.sp), color = TextSlate)
+            }
+            
+            // Timer Indicator (Top Left)
+            if (table.isOccupied && elapsedMinutes != null) {
+                Row(modifier = Modifier.align(Alignment.TopStart).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Timer, contentDescription = "Timer", tint = StatusOccupied, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text("${elapsedMinutes}m", style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp), color = StatusOccupied, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
