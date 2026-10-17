@@ -270,8 +270,8 @@ router.post("/:id/cancel", async (req: Request, res: Response): Promise<void> =>
   const id = req.params.id as string;
 
   try {
-    const order = await cancelOrder("1", id, req.staffId || "");
-    res.json(order);
+    await cancelOrder("1", id, req.staffId || "");
+    res.json({ success: true });
   } catch (err) {
     handleServiceError(res, err);
   }

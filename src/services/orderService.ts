@@ -126,19 +126,27 @@ export async function addItemsToOrder(
   let sqlBatch = `
     SET NOCOUNT ON;
     
-    DECLARE @TableID INT, @StewardID VARCHAR(50), @OutletID INT, @TableNumber VARCHAR(50);
+    DECLARE @TableID INT, @StewardID VARCHAR(50), @OutletID INT, @TableNumber VARCHAR(50), @OrderDate DATETIME;
     
     SELECT TOP 1 
       @TableID = o.TableID, 
       @StewardID = ISNULL(CAST(o.StewardID AS VARCHAR(50)), ''), 
       @OutletID = rt.OutletID, 
-      @TableNumber = ISNULL(rt.TableNumber, '')
+      @TableNumber = ISNULL(rt.TableNumber, ''),
+      @OrderDate = o.OrderDate
     FROM Orders o
     LEFT JOIN RestaurantTables rt ON o.TableID = rt.TableID
     WHERE o.OrderID = @orderId;
 
     DECLARE @CurrentMax INT = (SELECT ISNULL(MAX(OrderDetailID), 0) FROM OrderDetails);
     DECLARE @Price DECIMAL(18,2), @ItemName VARCHAR(255), @Amount DECIMAL(18,2);
+
+    -- Calculate sequential KOT Number for this table's active order session
+    DECLARE @CurrentKOTNum INT = (
+      SELECT ISNULL(MAX(TRY_CAST(KOTNumber AS INT)), 0) + 1 
+      FROM KOTAuditLog 
+      WHERE TableNumber = @TableNumber AND LogTime >= @OrderDate
+    );
   `;
 
   for (let i = 0; i < items.length; i++) {
@@ -167,6 +175,9 @@ export async function addItemsToOrder(
 
         INSERT INTO TempOrder (TableNumber, WaiterID, ItemName, Qty, Rate, Amount, OrderTime, IsKOTPrinted, itemid, narration)
         VALUES (@TableNumber, @StewardID, @ItemName, @qty_${i}, @Price, @Amount, @now, 0, @itemId_${i}, @notes_${i});
+
+        INSERT INTO KOTAuditLog (KOTNumber, TableNumber, ItemID, ItemName, DeltaQty, KOTAction, WaiterID, OutletID, LogTime, IsPrintedToKitchen, online)
+        VALUES (CAST(@CurrentKOTNum AS VARCHAR(50)), @TableNumber, @itemId_${i}, @ItemName, @qty_${i}, CASE WHEN @CurrentKOTNum = 1 THEN 'New Order' ELSE 'Add Items' END, @StewardID, @OutletID, @now, 0, 1);
       END
       
       SET @ItemName = NULL;
@@ -262,110 +273,305 @@ export async function markOrderPaid(restaurantId: string, orderId: string, payme
   return await updateKotStatus(restaurantId, orderId, "", "");
 }
 
-async function logAudit(pool: any, orderIdInt: number, action: string, waiterId: string, orderDetailId?: number, deltaQty?: number) {
-  try {
-    const orderRes = await pool.request()
-      .input("orderId", sql.Int, orderIdInt)
-      .query(`
-        SELECT 
-          o.TableID,
-          ISNULL(rt.TableNumber, '') as TableNumber,
-          rt.OutletID
-        FROM Orders o
-        LEFT JOIN RestaurantTables rt ON o.TableID = rt.TableID
-        WHERE o.OrderID = @orderId
-      `);
-    if (orderRes.recordset.length === 0) return;
-    const orderInfo = orderRes.recordset[0];
+export async function cancelOrder(restaurantId: string, orderId: string, waiterId: string, reason?: string) {
+  const pool = await getDb();
+  const orderIdInt = parseInt(orderId, 10);
 
-    let itemsQuery = `
+  const orderRes = await pool.request()
+    .input("orderId", sql.Int, orderIdInt)
+    .query(`
+      SELECT 
+        o.OrderID,
+        o.TableID,
+        o.OrderDate,
+        ISNULL(rt.TableNumber, '') as TableNumber,
+        rt.OutletID
+      FROM Orders o
+      LEFT JOIN RestaurantTables rt ON o.TableID = rt.TableID
+      WHERE o.OrderID = @orderId
+    `);
+
+  if (orderRes.recordset.length === 0) return;
+  const orderInfo = orderRes.recordset[0];
+
+  const itemsRes = await pool.request()
+    .input("orderId", sql.Int, orderIdInt)
+    .query(`
       SELECT od.ItemID, m.ItemName, od.Quantity 
       FROM OrderDetails od
       JOIN MenuItems m ON od.ItemID = m.ItemID
       WHERE od.OrderID = @orderId
-    `;
-    
-    const req = pool.request().input("orderId", sql.Int, orderIdInt);
-    if (orderDetailId) {
-      itemsQuery += ` AND od.OrderDetailID = @odId`;
-      req.input("odId", sql.Int, orderDetailId);
-    }
-    
-    const itemsRes = await req.query(itemsQuery);
-    
-    for (const item of itemsRes.recordset) {
-      await pool.request()
-        .input("kot", sql.VarChar, orderIdInt.toString())
-        .input("table", sql.VarChar, orderInfo.TableNumber)
-        .input("itemId", sql.Int, item.ItemID)
-        .input("itemName", sql.VarChar, item.ItemName)
-        .input("delta", sql.Int, deltaQty !== undefined ? deltaQty : -item.Quantity)
-        .input("action", sql.VarChar, action)
-        .input("waiter", sql.VarChar, waiterId)
-        .input("outlet", sql.Int, orderInfo.OutletID)
-        .input("time", sql.DateTime, new Date())
-        .query(`
-          INSERT INTO KOTAuditLog (KOTNumber, TableNumber, ItemID, ItemName, DeltaQty, KOTAction, WaiterID, OutletID, LogTime, IsPrintedToKitchen, online)
-          VALUES (@kot, @table, @itemId, @itemName, @delta, @action, @waiter, @outlet, @time, 0, 1)
-        `);
-    }
-  } catch (err) {
-    console.error("Failed to log audit", err);
-  }
-}
+    `);
 
-export async function cancelOrder(restaurantId: string, orderId: string, waiterId: string, reason?: string) {
-  const pool = await getDb();
-  await logAudit(pool, parseInt(orderId, 10), "Cancel Order", waiterId);
-  
-  await pool.request()
-    .input("orderId", sql.Int, parseInt(orderId, 10))
+  const kotRes = await pool.request()
+    .input("table", sql.VarChar, orderInfo.TableNumber)
+    .input("orderDate", sql.DateTime, orderInfo.OrderDate)
     .query(`
+      SELECT ISNULL(MAX(TRY_CAST(KOTNumber AS INT)), 0) as MaxKOT
+      FROM KOTAuditLog
+      WHERE TableNumber = @table AND LogTime >= @orderDate
+    `);
+  const maxKot = kotRes.recordset[0]?.MaxKOT || 1;
+  const kotNumber = (maxKot > 0 ? maxKot : 1).toString();
+  const now = new Date();
+
+  for (const item of itemsRes.recordset) {
+    await pool.request()
+      .input("kot", sql.VarChar, kotNumber)
+      .input("table", sql.VarChar, orderInfo.TableNumber)
+      .input("itemId", sql.Int, item.ItemID)
+      .input("itemName", sql.VarChar, item.ItemName)
+      .input("delta", sql.Int, -item.Quantity)
+      .input("action", sql.VarChar, "Cancel Order")
+      .input("waiter", sql.VarChar, waiterId)
+      .input("outlet", sql.Int, orderInfo.OutletID)
+      .input("time", sql.DateTime, now)
+      .query(`
+        INSERT INTO KOTAuditLog (KOTNumber, TableNumber, ItemID, ItemName, DeltaQty, KOTAction, WaiterID, OutletID, LogTime, IsPrintedToKitchen, online)
+        VALUES (@kot, @table, @itemId, @itemName, @delta, @action, @waiter, @outlet, @time, 0, 1)
+      `);
+  }
+
+  await pool.request()
+    .input("orderId", sql.Int, orderIdInt)
+    .input("tableNumber", sql.VarChar, orderInfo.TableNumber)
+    .input("tableId", sql.Int, orderInfo.TableID)
+    .input("orderDate", sql.DateTime, orderInfo.OrderDate)
+    .query(`
+      SET NOCOUNT ON;
+
+      DELETE FROM TempOrder WHERE TableNumber = @tableNumber AND OrderTime >= @orderDate;
       DELETE FROM OrderDetails WHERE OrderID = @orderId;
       DELETE FROM Orders WHERE OrderID = @orderId;
+
+      UPDATE RestaurantTables 
+      SET Status = 'Available', CurrentAmount = 0, OccupiedSince = NULL 
+      WHERE TableID = @tableId;
     `);
 }
 
 export async function updateOrderItem(restaurantId: string, orderId: string, itemId: string, quantityDelta: number, waiterId: string) {
   const pool = await getDb();
-  await logAudit(pool, parseInt(orderId, 10), "Update Item", waiterId, parseInt(itemId, 10), quantityDelta);
+  const orderIdInt = parseInt(orderId, 10);
+  const itemIdInt = parseInt(itemId, 10);
 
-  await pool.request()
-    .input("orderId", sql.Int, parseInt(orderId, 10))
-    .input("orderDetailId", sql.Int, parseInt(itemId, 10))
-    .input("qtyDelta", sql.Int, quantityDelta)
+  const orderRes = await pool.request()
+    .input("orderId", sql.Int, orderIdInt)
     .query(`
-      UPDATE OrderDetails 
-      SET Quantity = Quantity + @qtyDelta, 
-          Amount = (Quantity + @qtyDelta) * Price 
-      WHERE OrderDetailID = @orderDetailId AND OrderID = @orderId;
-
-      UPDATE Orders 
-      SET TotalAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
-      WHERE OrderID = @orderId;
-
-      UPDATE RestaurantTables 
-      SET CurrentAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
-      WHERE TableID = (SELECT TableID FROM Orders WHERE OrderID = @orderId);
+      SELECT 
+        o.OrderID,
+        o.TableID,
+        o.OrderDate,
+        ISNULL(rt.TableNumber, '') as TableNumber,
+        rt.OutletID
+      FROM Orders o
+      LEFT JOIN RestaurantTables rt ON o.TableID = rt.TableID
+      WHERE o.OrderID = @orderId
     `);
+
+  if (orderRes.recordset.length === 0) throw { status: 404, message: "Order not found" };
+  const orderInfo = orderRes.recordset[0];
+
+  // Match either OrderDetailID or ItemID (since mobile client passes ItemID)
+  const itemRes = await pool.request()
+    .input("orderId", sql.Int, orderIdInt)
+    .input("itemId", sql.Int, itemIdInt)
+    .query(`
+      SELECT TOP 1 
+        od.OrderDetailID,
+        od.ItemID,
+        od.Quantity,
+        od.Price,
+        m.ItemName
+      FROM OrderDetails od
+      JOIN MenuItems m ON od.ItemID = m.ItemID
+      WHERE od.OrderID = @orderId 
+        AND (od.OrderDetailID = @itemId OR od.ItemID = @itemId)
+      ORDER BY od.OrderDetailID DESC
+    `);
+
+  if (itemRes.recordset.length === 0) throw { status: 404, message: "Item not found in order" };
+  const item = itemRes.recordset[0];
+  const newQty = item.Quantity + quantityDelta;
+
+  const kotRes = await pool.request()
+    .input("table", sql.VarChar, orderInfo.TableNumber)
+    .input("orderDate", sql.DateTime, orderInfo.OrderDate)
+    .query(`
+      SELECT ISNULL(MAX(TRY_CAST(KOTNumber AS INT)), 0) as MaxKOT
+      FROM KOTAuditLog
+      WHERE TableNumber = @table AND LogTime >= @orderDate
+    `);
+  const maxKot = kotRes.recordset[0]?.MaxKOT || 1;
+  const kotNumber = (maxKot > 0 ? maxKot : 1).toString();
+
+  const updateReq = pool.request();
+  updateReq.input("orderId", sql.Int, orderIdInt);
+  updateReq.input("orderDetailId", sql.Int, item.OrderDetailID);
+  updateReq.input("itemId", sql.Int, item.ItemID);
+  updateReq.input("itemName", sql.VarChar, item.ItemName);
+  updateReq.input("tableNumber", sql.VarChar, orderInfo.TableNumber);
+  updateReq.input("tableId", sql.Int, orderInfo.TableID);
+  updateReq.input("orderDate", sql.DateTime, orderInfo.OrderDate);
+  updateReq.input("newQty", sql.Int, newQty);
+  updateReq.input("qtyDelta", sql.Int, quantityDelta);
+  updateReq.input("kotNumber", sql.VarChar, kotNumber);
+  updateReq.input("waiterId", sql.VarChar, waiterId);
+  updateReq.input("outletId", sql.Int, orderInfo.OutletID);
+  updateReq.input("now", sql.DateTime, new Date());
+
+  await updateReq.query(`
+    SET NOCOUNT ON;
+
+    -- 1. Update/Delete OrderDetails
+    IF @newQty <= 0
+    BEGIN
+      DELETE FROM OrderDetails WHERE OrderDetailID = @orderDetailId AND OrderID = @orderId;
+    END
+    ELSE
+    BEGIN
+      UPDATE OrderDetails 
+      SET Quantity = @newQty, Amount = @newQty * Price
+      WHERE OrderDetailID = @orderDetailId AND OrderID = @orderId;
+    END
+
+    -- 2. Update/Delete active TempOrder row
+    DECLARE @TempOrderID INT = (
+      SELECT TOP 1 TempOrderID 
+      FROM TempOrder 
+      WHERE TableNumber = @tableNumber 
+        AND (itemid = @itemId OR ItemName = @itemName) 
+        AND OrderTime >= @orderDate
+      ORDER BY TempOrderID DESC
+    );
+
+    IF @TempOrderID IS NOT NULL
+    BEGIN
+      IF @newQty <= 0
+      BEGIN
+        DELETE FROM TempOrder WHERE TempOrderID = @TempOrderID;
+      END
+      ELSE
+      BEGIN
+        UPDATE TempOrder 
+        SET Qty = @newQty, Amount = @newQty * Rate 
+        WHERE TempOrderID = @TempOrderID;
+      END
+    END
+
+    -- 3. Recalculate Totals
+    UPDATE Orders 
+    SET TotalAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+    WHERE OrderID = @orderId;
+
+    UPDATE RestaurantTables 
+    SET CurrentAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+    WHERE TableID = @tableId;
+
+    -- 4. Audit Log
+    INSERT INTO KOTAuditLog (KOTNumber, TableNumber, ItemID, ItemName, DeltaQty, KOTAction, WaiterID, OutletID, LogTime, IsPrintedToKitchen, online)
+    VALUES (
+      @kotNumber, 
+      @tableNumber, 
+      @itemId, 
+      @itemName, 
+      @qtyDelta, 
+      CASE WHEN @qtyDelta < 0 THEN 'Reduce Qty' ELSE 'Increase Qty' END, 
+      @waiterId, 
+      @outletId, 
+      @now, 
+      0, 
+      1
+    );
+  `);
 }
 
 export async function deleteOrderItem(restaurantId: string, orderId: string, itemId: string, waiterId: string) {
   const pool = await getDb();
-  await logAudit(pool, parseInt(orderId, 10), "Delete Item", waiterId, parseInt(itemId, 10));
+  const orderIdInt = parseInt(orderId, 10);
+  const itemIdInt = parseInt(itemId, 10);
 
-  await pool.request()
-    .input("orderId", sql.Int, parseInt(orderId, 10))
-    .input("orderDetailId", sql.Int, parseInt(itemId, 10))
+  const orderRes = await pool.request()
+    .input("orderId", sql.Int, orderIdInt)
     .query(`
-      DELETE FROM OrderDetails WHERE OrderDetailID = @orderDetailId AND OrderID = @orderId;
-
-      UPDATE Orders 
-      SET TotalAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
-      WHERE OrderID = @orderId;
-
-      UPDATE RestaurantTables 
-      SET CurrentAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
-      WHERE TableID = (SELECT TableID FROM Orders WHERE OrderID = @orderId);
+      SELECT 
+        o.OrderID,
+        o.TableID,
+        o.OrderDate,
+        ISNULL(rt.TableNumber, '') as TableNumber,
+        rt.OutletID
+      FROM Orders o
+      LEFT JOIN RestaurantTables rt ON o.TableID = rt.TableID
+      WHERE o.OrderID = @orderId
     `);
+
+  if (orderRes.recordset.length === 0) throw { status: 404, message: "Order not found" };
+  const orderInfo = orderRes.recordset[0];
+
+  const itemRes = await pool.request()
+    .input("orderId", sql.Int, orderIdInt)
+    .input("itemId", sql.Int, itemIdInt)
+    .query(`
+      SELECT TOP 1 
+        od.OrderDetailID,
+        od.ItemID,
+        od.Quantity,
+        od.Price,
+        m.ItemName
+      FROM OrderDetails od
+      JOIN MenuItems m ON od.ItemID = m.ItemID
+      WHERE od.OrderID = @orderId 
+        AND (od.OrderDetailID = @itemId OR od.ItemID = @itemId)
+      ORDER BY od.OrderDetailID DESC
+    `);
+
+  if (itemRes.recordset.length === 0) throw { status: 404, message: "Item not found in order" };
+  const item = itemRes.recordset[0];
+
+  const kotRes = await pool.request()
+    .input("table", sql.VarChar, orderInfo.TableNumber)
+    .input("orderDate", sql.DateTime, orderInfo.OrderDate)
+    .query(`
+      SELECT ISNULL(MAX(TRY_CAST(KOTNumber AS INT)), 0) as MaxKOT
+      FROM KOTAuditLog
+      WHERE TableNumber = @table AND LogTime >= @orderDate
+    `);
+  const maxKot = kotRes.recordset[0]?.MaxKOT || 1;
+  const kotNumber = (maxKot > 0 ? maxKot : 1).toString();
+
+  const delReq = pool.request();
+  delReq.input("orderId", sql.Int, orderIdInt);
+  delReq.input("orderDetailId", sql.Int, item.OrderDetailID);
+  delReq.input("itemId", sql.Int, item.ItemID);
+  delReq.input("itemName", sql.VarChar, item.ItemName);
+  delReq.input("tableNumber", sql.VarChar, orderInfo.TableNumber);
+  delReq.input("tableId", sql.Int, orderInfo.TableID);
+  delReq.input("orderDate", sql.DateTime, orderInfo.OrderDate);
+  delReq.input("deltaQty", sql.Int, -item.Quantity);
+  delReq.input("kotNumber", sql.VarChar, kotNumber);
+  delReq.input("waiterId", sql.VarChar, waiterId);
+  delReq.input("outletId", sql.Int, orderInfo.OutletID);
+  delReq.input("now", sql.DateTime, new Date());
+
+  await delReq.query(`
+    SET NOCOUNT ON;
+
+    DELETE FROM OrderDetails WHERE OrderDetailID = @orderDetailId AND OrderID = @orderId;
+
+    DELETE FROM TempOrder 
+    WHERE TableNumber = @tableNumber 
+      AND (itemid = @itemId OR ItemName = @itemName) 
+      AND OrderTime >= @orderDate;
+
+    UPDATE Orders 
+    SET TotalAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+    WHERE OrderID = @orderId;
+
+    UPDATE RestaurantTables 
+    SET CurrentAmount = (SELECT ISNULL(SUM(Amount), 0) FROM OrderDetails WHERE OrderID = @orderId)
+    WHERE TableID = @tableId;
+
+    INSERT INTO KOTAuditLog (KOTNumber, TableNumber, ItemID, ItemName, DeltaQty, KOTAction, WaiterID, OutletID, LogTime, IsPrintedToKitchen, online)
+    VALUES (@kotNumber, @tableNumber, @itemId, @itemName, @deltaQty, 'Delete Item', @waiterId, @outletId, @now, 0, 1);
+  `);
 }
