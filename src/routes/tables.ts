@@ -28,14 +28,21 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         t.TableID, 
         t.TableNumber, 
         t.OutletID, 
-        (SELECT TOP 1 o.OrderDate FROM Orders o WHERE o.TableID = t.TableID AND (o.IsPaid = 0 OR o.IsPaid IS NULL) ORDER BY o.OrderDate DESC) as OrderStartTime,
-        (SELECT TOP 1 o.TotalAmount FROM Orders o WHERE o.TableID = t.TableID AND (o.IsPaid = 0 OR o.IsPaid IS NULL) ORDER BY o.OrderDate DESC) as CurrentAmount,
+        o.OrderID as CurrentOrderID,
+        o.OrderDate as OrderStartTime,
+        o.TotalAmount as CurrentAmount,
         CASE 
-          WHEN EXISTS (SELECT 1 FROM Orders o WHERE o.TableID = t.TableID AND (o.IsPaid = 0 OR o.IsPaid IS NULL)) 
+          WHEN o.OrderID IS NOT NULL 
           THEN 'Occupied' 
           ELSE 'Available' 
         END as Status
       FROM RestaurantTables t
+      OUTER APPLY (
+        SELECT TOP 1 o.OrderID, o.OrderDate, o.TotalAmount
+        FROM Orders o 
+        WHERE o.TableID = t.TableID AND (o.IsPaid = 0 OR o.IsPaid IS NULL)
+        ORDER BY o.OrderDate DESC
+      ) o
     `;
 
     let tables = result.recordset.map((row) => ({
@@ -48,6 +55,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       outletId: row.OutletID ? row.OutletID.toString() : null,
       orderStartTime: row.OrderStartTime ? new Date(row.OrderStartTime).toISOString() : null,
       currentAmount: row.CurrentAmount != null ? parseFloat(row.CurrentAmount) : null,
+      currentOrderId: row.CurrentOrderID ? row.CurrentOrderID.toString() : null,
     }));
 
     if (hasTableRestrictions) {

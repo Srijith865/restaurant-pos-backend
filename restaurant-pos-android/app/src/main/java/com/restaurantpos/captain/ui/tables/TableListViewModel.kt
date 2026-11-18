@@ -79,7 +79,7 @@ class TableListViewModel(application: Application, private val onUnauthorized: (
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
             while (true) {
-                kotlinx.coroutines.delay(10000)
+                kotlinx.coroutines.delay(25000)
                 refreshSilently()
             }
         }

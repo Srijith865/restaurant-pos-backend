@@ -89,7 +89,7 @@ fun TableListScreen(
                             onClick = {
                                 scope.launch {
                                     val orderId = if (table.isOccupied) {
-                                        viewModel.getOpenOrderForTable(table.id)
+                                        table.currentOrderId ?: viewModel.getOpenOrderForTable(table.id)
                                     } else null
                                     onTableClick(table.id, orderId, table.label)
                                 }

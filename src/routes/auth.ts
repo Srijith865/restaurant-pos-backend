@@ -55,6 +55,10 @@ router.post("/verify-device", async (req: Request, res: Response): Promise<void>
   }
   
   const status = await getDeviceStatus(parsed.data.deviceId);
+  if (status.error) {
+    res.status(503).json({ error: "Database temporarily unavailable, please retry" });
+    return;
+  }
   if (status.isApproved) {
     res.json({ authorized: true });
   } else {
@@ -98,14 +102,22 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
 
   // 1. Verify Device
   const status = await getDeviceStatus(deviceId);
+  if (status.error) {
+    res.status(503).json({ error: "Database temporarily unavailable, please retry" });
+    return;
+  }
   if (!status.isApproved) {
     res.status(403).json({ error: "Device Not Authorized" });
     return;
   }
 
   // 2. Verify PIN
-  const pinValid = await verifyWaiterPin(waiterId.toString(), pin);
-  if (!pinValid) {
+  const pinResult = await verifyWaiterPin(waiterId.toString(), pin);
+  if (pinResult.error) {
+    res.status(503).json({ error: "Database temporarily unavailable, please retry" });
+    return;
+  }
+  if (!pinResult.valid) {
     res.status(401).json({ error: "Invalid PIN" });
     return;
   }

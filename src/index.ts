@@ -72,6 +72,18 @@ app.get("/health", (_req, res) => {
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+
+  // Keep-alive for Render Free Tier (pings every 10 minutes to prevent cold-starts during operating hours)
+  const RENDER_URL = process.env.RENDER_EXTERNAL_URL || "https://restaurant-pos-backend-kzmq.onrender.com";
+  const PING_INTERVAL = 10 * 60 * 1000; // 10 minutes
+  setInterval(async () => {
+    try {
+      const response = await fetch(`${RENDER_URL}/health`);
+      console.log(`[Keep-Alive] Pinged ${RENDER_URL}/health: status ${response.status}`);
+    } catch (err: any) {
+      console.warn(`[Keep-Alive] Ping error:`, err?.message || err);
+    }
+  }, PING_INTERVAL);
 });
 
 process.on("unhandledRejection", (reason, promise) => {

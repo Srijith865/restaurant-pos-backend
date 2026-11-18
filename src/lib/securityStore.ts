@@ -42,7 +42,7 @@ async function initSecurityTables() {
 // Fire and forget initialization
 initSecurityTables();
 
-export async function getDeviceStatus(deviceId: string): Promise<{ exists: boolean, isApproved: boolean }> {
+export async function getDeviceStatus(deviceId: string): Promise<{ exists: boolean; isApproved: boolean; error?: boolean }> {
   if (!deviceId) return { exists: false, isApproved: false };
   try {
     const pool = await getDb();
@@ -55,8 +55,8 @@ export async function getDeviceStatus(deviceId: string): Promise<{ exists: boole
     }
     return { exists: false, isApproved: false };
   } catch (err) {
-    console.error(err);
-    return { exists: false, isApproved: false };
+    console.error("Database error in getDeviceStatus:", err);
+    return { exists: false, isApproved: false, error: true };
   }
 }
 
@@ -105,7 +105,7 @@ export async function setDeviceApproval(deviceId: string, isApproved: boolean) {
   }
 }
 
-export async function verifyWaiterPin(waiterId: string, pin: string): Promise<boolean> {
+export async function verifyWaiterPin(waiterId: string, pin: string): Promise<{ valid: boolean; error?: boolean }> {
   try {
     const pool = await getDb();
     const result = await pool.request()
@@ -113,14 +113,14 @@ export async function verifyWaiterPin(waiterId: string, pin: string): Promise<bo
       .query(`SELECT Pin FROM WaiterPins WHERE WaiterId = @waiterId`);
       
     if (result.recordset.length > 0) {
-      return result.recordset[0].Pin === pin;
+      return { valid: result.recordset[0].Pin === pin };
     } else {
       // If no custom PIN exists in the table, use DEFAULT_PIN
-      return pin === DEFAULT_PIN;
+      return { valid: pin === DEFAULT_PIN };
     }
   } catch (err) {
-    console.error(err);
-    return false;
+    console.error("Database error in verifyWaiterPin:", err);
+    return { valid: false, error: true };
   }
 }
 

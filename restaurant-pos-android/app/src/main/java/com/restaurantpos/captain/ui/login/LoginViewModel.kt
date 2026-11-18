@@ -46,12 +46,11 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                 if (e.code() == 403) {
                     deviceNotAuthorized = true
                 } else {
-                    // It might be 404 if server isn't updated yet, load waiters so UI doesn't break completely
-                    errorMessage = "Server returned ${e.code()}. Did you restart the backend?"
+                    errorMessage = "Server busy (${e.code()}). Retrying..."
                     loadWaiters()
                 }
             } catch (e: Exception) {
-                errorMessage = "Cannot connect to server."
+                errorMessage = "Connecting to server..."
                 loadWaiters()
             }
         }
@@ -64,7 +63,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 waiters = apiService.getWaiters()
             } catch (e: Exception) {
-                errorMessage = "Failed to load waiters. Check connection."
+                errorMessage = "Server waking up or check connection. Tap to retry."
             } finally {
                 isLoadingWaiters = false
             }
@@ -99,6 +98,8 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                     deviceNotAuthorized = true
                 } else if (e.code() == 401) {
                     errorMessage = "Invalid PIN"
+                } else if (e.code() == 503) {
+                    errorMessage = "Database busy, please retry in a few seconds."
                 } else {
                     errorMessage = "Login failed: ${e.code()}"
                 }
@@ -130,6 +131,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun checkApproval() {
+        deviceNotAuthorized = false
         verifyDevice()
     }
 }

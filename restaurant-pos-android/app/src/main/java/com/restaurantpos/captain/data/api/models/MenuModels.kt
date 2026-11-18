@@ -5,7 +5,8 @@ data class Table(
     val label: String,
     val isOccupied: Boolean,
     val orderStartTime: String? = null,
-    val currentAmount: Double? = null
+    val currentAmount: Double? = null,
+    val currentOrderId: String? = null
 )
 
 data class Category(

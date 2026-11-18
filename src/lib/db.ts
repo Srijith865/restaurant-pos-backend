@@ -5,17 +5,17 @@ const config: sql.config = {
   password: "sabt",
   server: "sql.bsite.net\\MSSQL2016", 
   database: "bteapcet_RestaurantDB",
-  connectionTimeout: 30000,
-  requestTimeout: 30000,
+  connectionTimeout: 45000,
+  requestTimeout: 45000,
   options: {
     encrypt: false,
     trustServerCertificate: true,
     enableArithAbort: true,
   },
   pool: {
-    max: 20,
-    min: 0, // avoid holding stale idle connections that remote firewalls silently drop
-    idleTimeoutMillis: 30000,
+    max: 15,
+    min: 1, // keep 1 warm connection so queries don't suffer TDS handshake latency
+    idleTimeoutMillis: 60000,
   },
 };
 
