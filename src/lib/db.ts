@@ -13,9 +13,9 @@ const config: sql.config = {
     enableArithAbort: true,
   },
   pool: {
-    max: 15,
-    min: 1, // keep 1 warm connection so queries don't suffer TDS handshake latency
-    idleTimeoutMillis: 60000,
+    max: 10,
+    min: 0, // free SQL hosting kills idle connections, don't try to keep them
+    idleTimeoutMillis: 30000,
   },
 };
 
