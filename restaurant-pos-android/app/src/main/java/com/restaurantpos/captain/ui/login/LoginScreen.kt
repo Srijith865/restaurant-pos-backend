@@ -148,11 +148,12 @@ fun LoginScreen(
                     color = ErrorRed,
                     style = MaterialTheme.typography.bodySmall
                 )
-                if (it.contains("load waiters")) {
-                    TextButton(onClick = { viewModel.loadWaiters() }) {
-                        Text("Retry", color = PrimaryGreen)
-                    }
-                }
+                Spacer(modifier = Modifier.height(8.dp))
+                AppButton(
+                    text = "Retry",
+                    onClick = { viewModel.loadWaiters() },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
             
             Spacer(modifier = Modifier.height(32.dp))

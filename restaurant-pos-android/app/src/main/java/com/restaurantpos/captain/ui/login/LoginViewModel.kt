@@ -63,7 +63,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 waiters = apiService.getWaiters()
             } catch (e: Exception) {
-                errorMessage = "Server waking up or check connection. Tap to retry."
+                errorMessage = "Could not reach server. Tap Retry below."
             } finally {
                 isLoadingWaiters = false
             }
